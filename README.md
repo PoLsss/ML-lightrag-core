@@ -33,6 +33,11 @@ cp env.example .env
 docker compose up -d   #for win, phải start docker desktop trước khi chạy lệnh này
 sudo docker compose up -d     #for linux
 ```
+- Sau khi chạy 1 lúc (khoảng 10s) thì có thể truy cập vào webui của lightrag bằng địa chỉ: http://localhost:9621/webui/
+- Giao diện sẽ như sau, tại đậy có thể upload thủ công 1 số file để test với chatbox
+
+<img width="2774" height="837" alt="image" src="https://github.com/user-attachments/assets/9b01aec0-9626-48c1-9196-e7091975dd09" />
+
 
 7. Khởi động chatbox
  - Trong thư mục LightRag, mở 1 terminal mới và chạy lệnh sau

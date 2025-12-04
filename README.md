@@ -44,8 +44,8 @@ sudo docker compose up -d     #for linux
 ```
 python main.py
 ```
-
-Kết quả demo: Hiện tại chưa upload data lên lightrag, nên sẽ không có bất kỳ thông tin nào về UIT, chỉ có vài file mẫu không liên quan để test
+Chưa hỗ trợ upload file tự động.
+Kết quả demo: Hiện tại chỉ mới upload file "cam_nang_sau_dai_hoc_2025_0.pdf" từ trang 1-43, nên sẽ có rất it thông tin nào về UIT, chỉ có vài file mẫu không liên quan để test
 
 
 

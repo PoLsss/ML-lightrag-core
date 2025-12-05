@@ -12,6 +12,7 @@ cd ML-lightrag-core
 python -m venv venv
 
 .\venv\Scripts\activate       #for win
+or
 source venv/bin/activate      #for linux
 ```
 3. Install nessecary libraries
@@ -31,6 +32,7 @@ cp env.example .env
 6. Quay lại terminal và chạy lệnh sau
 ```
 docker compose up -d   #for win, phải start docker desktop trước khi chạy lệnh này
+or
 sudo docker compose up -d     #for linux
 ```
 - Sau khi chạy 1 lúc (khoảng 10s) thì có thể truy cập vào webui của lightrag bằng địa chỉ: http://localhost:9621/webui/
@@ -43,6 +45,7 @@ sudo docker compose up -d     #for linux
  - Trong thư mục ML-lightrag-core, mở 1 terminal mới và chạy lệnh sau
 ```
 .\venv\Scripts\activate       #for win
+or
 source venv/bin/activate      #for linux
 
 python main.py

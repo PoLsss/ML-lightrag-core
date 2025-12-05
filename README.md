@@ -40,8 +40,11 @@ sudo docker compose up -d     #for linux
 
 
 7. Khởi động chatbox
- - Trong thư mục LightRag, mở 1 terminal mới và chạy lệnh sau
+ - Trong thư mục ML-lightrag-core, mở 1 terminal mới và chạy lệnh sau
 ```
+.\venv\Scripts\activate       #for win
+source venv/bin/activate      #for linux
+
 python main.py
 ```
 Chưa hỗ trợ upload file tự động.

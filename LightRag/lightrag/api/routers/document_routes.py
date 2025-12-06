@@ -444,6 +444,48 @@ class DocStatusResponse(BaseModel):
         }
 
 
+class DocContentRequest(BaseModel):
+    """Request model for document content retrieval
+
+    Attributes:
+        doc_id: Document identifier
+    """
+
+    doc_id: str = Field(description="Document identifier")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "doc_id": "doc_123456",
+            }
+        }
+
+
+class DocContentResponse(BaseModel):
+    """Response model for document content retrieval
+
+    Attributes:
+        id: Document identifier
+        content: Full document content
+        file_path: Path to the document file
+    """
+
+    id: str = Field(description="Document identifier")
+    content: str = Field(description="Full document content")
+    file_path: Optional[str] = Field(
+        default=None, description="Path to the document file"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "doc_123456",
+                "content": "This is the full content of the document...",
+                "file_path": "research_paper.pdf",
+            }
+        }
+
+
 class DocsStatusesResponse(BaseModel):
     """Response model for document statuses
 
@@ -2237,6 +2279,65 @@ def create_document_routes(
                 pipeline_status["latest_message"] = completion_msg
                 if "history_messages" in pipeline_status:
                     pipeline_status["history_messages"].append(completion_msg)
+
+    @router.post(
+        "/content",
+        response_model=DocContentResponse,
+        dependencies=[Depends(combined_auth)],
+    )
+    async def get_document_content(request: DocContentRequest) -> DocContentResponse:
+        """
+        Get the full content of a document by its ID.
+
+        This endpoint retrieves the complete content of a document from the full_docs storage.
+
+        Args:
+            request: DocContentRequest containing 'doc_id' - The unique identifier of the document
+
+        Returns:
+            DocContentResponse: A response object containing:
+                - id: Document identifier
+                - content: Full document content
+                - file_path: Path to the document file (if available)
+
+        Raises:
+            HTTPException: If document not found (404) or an error occurs (500).
+        """
+        try:
+            # Extract doc_id from request
+            doc_id = request.doc_id
+            
+            # Validate doc_id
+            if not doc_id or not doc_id.strip():
+                raise HTTPException(status_code=400, detail="Document ID cannot be empty")
+
+            doc_id = doc_id.strip()
+
+            # Get document content from full_docs storage
+            content_data = await rag.full_docs.get_by_id(doc_id)
+
+            if not content_data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Document with ID '{doc_id}' not found"
+                )
+
+            # Extract content and file_path
+            content = content_data.get("content", "")
+            file_path = content_data.get("file_path", None)
+
+            return DocContentResponse(
+                id=doc_id,
+                content=content,
+                file_path=file_path
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting document content for {doc_id}: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=str(e))
 
     @router.get(
         "/pipeline_status",

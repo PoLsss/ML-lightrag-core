@@ -1,0 +1,436 @@
+{
+  "settings": {
+    "language": "Ngôn ngữ",
+    "theme": "Giao diện",
+    "light": "Sáng",
+    "dark": "Tối",
+    "system": "Hệ thống"
+  },
+  "header": {
+    "documents": "Tài liệu",
+    "knowledgeGraph": "Đồ thị tri thức",
+    "chat": "Trò chuyện",
+    "projectRepository": "Kho dự án",
+    "logout": "Đăng xuất",
+    "frontendNeedsRebuild": "Frontend cần rebuild"
+  },
+  "chat": {
+    "title": "Trò chuyện với tài liệu",
+    "subtitle": "Đặt câu hỏi về cơ sở tri thức của bạn",
+    "agentMode": "Chế độ thông minh: Tự động phát hiện loại câu hỏi",
+    "agentModeTitle": "Chế độ Agent",
+    "agentModeDesc": "Khi bật, tự động phát hiện câu hỏi của bạn cần truy xuất tài liệu (RAG) hay chỉ cần phản hồi chat đơn giản.",
+    "inputPlaceholder": "Đặt câu hỏi về tài liệu của bạn...",
+    "hint": "Nhấn Enter để gửi, Shift+Enter để xuống dòng",
+    "streaming": "Đang bật streaming",
+    "noStreaming": "Streaming đã tắt",
+    "clear": "Xóa cuộc trò chuyện",
+    "error": "Xin lỗi, đã xảy ra lỗi: ",
+    "welcome": {
+      "title": "Chào mừng đến với Master's UIT Chat",
+      "description": "Bắt đầu cuộc trò chuyện bằng cách đặt câu hỏi về tài liệu đã tải lên. Tôi sẽ sử dụng đồ thị tri thức để cung cấp câu trả lời chính xác."
+    },
+    "suggestions": {
+      "1": "Những chủ đề nào được đề cập trong tài liệu?",
+      "2": "Thông tin về khóa luận tốt nghiệp",
+      "3": "Chương trình nghiên cứu phương thức 2"
+    },
+    "stats": {
+      "title": "Thống kê Chat",
+      "reset": "Đặt lại",
+      "totalQueries": "Tổng truy vấn",
+      "messages": "Tin nhắn",
+      "avgResponse": "TB Phản hồi",
+      "fastest": "Nhanh nhất",
+      "slowest": "Chậm nhất",
+      "totalResponses": "Tổng phản hồi",
+      "tokensUsed": "Token đã dùng",
+      "queryModes": "Chế độ truy vấn",
+      "responseTimeTrend": "Xu hướng thời gian phản hồi",
+      "performance": "Hiệu suất",
+      "noData": "Chưa có dữ liệu",
+      "older": "Cũ hơn",
+      "newer": "Mới hơn",
+      "ragQueries": "Truy vấn RAG",
+      "chatQueries": "Truy vấn Chat",
+      "usedRetrieval": "Sử dụng truy xuất tài liệu",
+      "directResponse": "Phản hồi trực tiếp từ LLM"
+    }
+  },
+  "login": {
+    "description": "Vui lòng nhập tài khoản và mật khẩu để đăng nhập vào hệ thống",
+    "username": "Tên đăng nhập",
+    "usernamePlaceholder": "Nhập tên đăng nhập",
+    "password": "Mật khẩu",
+    "passwordPlaceholder": "Nhập mật khẩu",
+    "loginButton": "Đăng nhập",
+    "loggingIn": "Đang đăng nhập...",
+    "successMessage": "Đăng nhập thành công",
+    "errorEmptyFields": "Vui lòng nhập tên đăng nhập và mật khẩu",
+    "errorInvalidCredentials": "Đăng nhập thất bại, vui lòng kiểm tra lại tên đăng nhập và mật khẩu",
+    "authDisabled": "Xác thực đã bị vô hiệu hóa. Sử dụng chế độ đăng nhập tự do.",
+    "guestMode": "Đăng nhập tự do"
+  },
+  "common": {
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "saving": "Đang lưu...",
+    "saveFailed": "Lưu thất bại",
+    "close": "Đóng",
+    "yes": "Có",
+    "no": "Không"
+  },
+  "documentPanel": {
+    "title": "Quản lý tài liệu",
+    "description": "Quản lý tài liệu đã tải lên và trạng thái xử lý",
+    "scanButton": "Quét",
+    "scanTooltip": "Quét và xử lý tài liệu trong thư mục đầu vào",
+    "refreshTooltip": "Đặt lại danh sách tài liệu",
+    "selectAll": "Chọn tất cả",
+    "selected": "Đã chọn {{count}}",
+    "showId": "Hiện ID",
+    "showFileName": "Hiện tên file",
+    "empty": "Không có tài liệu",
+    "emptyTitle": "Không có tài liệu",
+    "emptyDescription": "Chưa có tài liệu nào được tải lên.",
+    "filters": {
+      "all": "Tất cả",
+      "processed": "Đã xử lý",
+      "processing": "Đang xử lý",
+      "pending": "Chờ xử lý",
+      "failed": "Thất bại"
+    },
+    "columns": {
+      "id": "ID",
+      "fileName": "Tên file",
+      "summary": "Tóm tắt",
+      "status": "Trạng thái",
+      "length": "Độ dài",
+      "chunks": "Chunks",
+      "created": "Ngày tạo",
+      "updated": "Cập nhật",
+      "metadata": "Metadata",
+      "select": "Chọn"
+    },
+    "status": {
+      "all": "Tất cả",
+      "completed": "Hoàn thành",
+      "preprocessed": "Tiền xử lý",
+      "processing": "Đang xử lý",
+      "pending": "Chờ",
+      "failed": "Thất bại"
+    },
+    "pagination": {
+      "showing": "Hiển thị {{start}} đến {{end}} trong {{total}}"
+    },
+    "upload": {
+      "button": "Tải lên",
+      "title": "Tải lên tài liệu",
+      "description": "Chọn file để tải lên",
+      "uploading": "Đang tải...",
+      "success": "Đã tải lên {{count}} file",
+      "duplicate": "File đã tồn tại",
+      "unsupportedType": "Loại file không được hỗ trợ",
+      "fileTooLarge": "File quá lớn, tối đa {{maxSize}}",
+      "dropHere": "Thả file vào đây",
+      "dragAndDrop": "Kéo và thả file vào đây, hoặc nhấp để chọn",
+      "removeFile": "Xóa file",
+      "uploadDescription": "Bạn có thể tải nhiều file (tối đa {{maxSize}} mỗi file)",
+      "duplicateFile": "Tên file đã tồn tại trong bộ nhớ đệm"
+    },
+    "clear": {
+      "button": "Xóa tất cả",
+      "title": "Xóa tất cả tài liệu",
+      "description": "Thao tác này sẽ xóa vĩnh viễn tất cả tài liệu",
+      "warning": "Không thể hoàn tác!",
+      "confirmPrompt": "Nhập 'yes' để xác nhận",
+      "confirmPlaceholder": "yes",
+      "clearCache": "Xóa cả bộ nhớ đệm LLM",
+      "success": "Đã xóa tất cả tài liệu",
+      "failed": "Xóa thất bại: {{message}}",
+      "error": "Lỗi: {{error}}"
+    },
+    "delete": {
+      "button": "Xóa",
+      "title": "Xóa tài liệu",
+      "description": "Xóa {{count}} tài liệu đã chọn",
+      "warning": "Không thể hoàn tác!",
+      "confirmPrompt": "Nhập 'yes' để xác nhận",
+      "confirmPlaceholder": "yes",
+      "deleteFile": "Xóa cả file nguồn",
+      "deleteCache": "Xóa cả bộ nhớ đệm LLM",
+      "success": "Đã xóa {{count}} tài liệu",
+      "failed": "Xóa thất bại: {{message}}",
+      "error": "Lỗi: {{error}}",
+      "busy": "Pipeline đang bận, thử lại sau",
+      "notAllowed": "Không được phép"
+    },
+    "pipeline": {
+      "title": "Trạng thái Pipeline",
+      "description": "Xem trạng thái xử lý tài liệu",
+      "busy": "Pipeline đang bận",
+      "requestPending": "Yêu cầu đang chờ",
+      "cancellationRequested": "Đã yêu cầu hủy",
+      "jobName": "Công việc",
+      "startTime": "Thời gian bắt đầu",
+      "progress": "Tiến trình",
+      "unit": "Batch",
+      "pipelineMessages": "Thông báo Pipeline",
+      "documents": "Tài liệu",
+      "batches": "Batches",
+      "autoscanned": "Tự động quét",
+      "latestMessage": "Tin nhắn mới nhất",
+      "history": "Lịch sử",
+      "noData": "Không có dữ liệu",
+      "cancel": "Hủy",
+      "cancelTooltip": "Hủy xử lý pipeline",
+      "cancelConfirmTitle": "Xác nhận hủy Pipeline",
+      "cancelConfirmDescription": "Thao tác này sẽ ngừng xử lý pipeline. Bạn có chắc chắn?",
+      "cancelConfirmButton": "Xác nhận hủy",
+      "cancelInProgress": "Đang hủy...",
+      "pipelineNotRunning": "Pipeline không chạy",
+      "cancelSuccess": "Đã yêu cầu hủy pipeline",
+      "cancelFailed": "Hủy thất bại\n{{error}}",
+      "cancelNotBusy": "Pipeline không chạy, không cần hủy",
+      "cancelRequested": "Đã yêu cầu hủy pipeline"
+    },
+    "documentManager": {
+      "title": "Quản lý tài liệu",
+      "pipelineStatusButton": "Pipeline",
+      "pipelineStatusTooltip": "Xem trạng thái xử lý",
+      "uploadedTitle": "Tài liệu đã tải",
+      "uploadedDescription": "Danh sách tài liệu và trạng thái.",
+      "fileNameLabel": "Tên file",
+      "showButton": "Hiện",
+      "hideButton": "Ẩn",
+      "showFileNameTooltip": "Hiện tên file",
+      "hideFileNameTooltip": "Ẩn tên file",
+      "errors": {
+        "loadFailed": "Tải tài liệu thất bại\n{{error}}",
+        "scanFailed": "Quét tài liệu thất bại\n{{error}}",
+        "scanProgressFailed": "Lấy tiến trình quét thất bại\n{{error}}"
+      }
+    }
+  },
+  "graphPanel": {
+    "searchPlaceholder": "Tìm kiếm nhãn node...",
+    "settings": "Cài đặt",
+    "maxDepth": "Độ sâu tối đa",
+    "maxNodes": "Số node tối đa",
+    "loading": "Đang tải đồ thị...",
+    "loadSuccess": "Đã tải {{nodes}} nodes và {{edges}} edges",
+    "loadError": "Tải đồ thị thất bại",
+    "dataIsTruncated": "Dữ liệu đồ thị bị cắt ngắn",
+    "emptyGraph": "Trống (Thử tải lại)",
+    "legend": "Chú giải",
+    "nodeTypes": {
+      "person": "Người",
+      "category": "Danh mục",
+      "geo": "Địa lý",
+      "location": "Vị trí",
+      "organization": "Tổ chức",
+      "event": "Sự kiện",
+      "equipment": "Thiết bị",
+      "weapon": "Vũ khí",
+      "animal": "Động vật",
+      "unknown": "Không xác định",
+      "object": "Đối tượng",
+      "group": "Nhóm",
+      "technology": "Công nghệ",
+      "product": "Sản phẩm",
+      "document": "Tài liệu",
+      "content": "Nội dung",
+      "data": "Dữ liệu",
+      "artifact": "Hiện vật",
+      "concept": "Khái niệm",
+      "naturalobject": "Vật tự nhiên",
+      "method": "Phương pháp",
+      "creature": "Sinh vật",
+      "plant": "Thực vật",
+      "disease": "Bệnh",
+      "drug": "Thuốc",
+      "food": "Thực phẩm",
+      "other": "Khác"
+    },
+    "statusDialog": {
+      "title": "Cài đặt LightRAG Server",
+      "description": "Xem trạng thái hệ thống và thông tin kết nối"
+    },
+    "sideBar": {
+      "settings": {
+        "settings": "Cài đặt",
+        "healthCheck": "Kiểm tra sức khỏe",
+        "showPropertyPanel": "Hiện bảng thuộc tính",
+        "showSearchBar": "Hiện thanh tìm kiếm",
+        "showNodeLabel": "Hiện nhãn node",
+        "nodeDraggable": "Có thể kéo node",
+        "showEdgeLabel": "Hiện nhãn cạnh",
+        "hideUnselectedEdges": "Ẩn cạnh không chọn",
+        "edgeEvents": "Sự kiện cạnh",
+        "maxQueryDepth": "Độ sâu truy vấn tối đa",
+        "maxNodes": "Số node tối đa",
+        "maxLayoutIterations": "Số lần lặp layout tối đa",
+        "resetToDefault": "Đặt lại mặc định",
+        "edgeSizeRange": "Phạm vi kích thước cạnh",
+        "depth": "Đ",
+        "max": "Tối đa",
+        "degree": "Bậc",
+        "apiKey": "API Key",
+        "enterYourAPIkey": "Nhập API key của bạn",
+        "save": "Lưu",
+        "refreshLayout": "Làm mới Layout"
+      },
+      "zoomControl": {
+        "zoomIn": "Phóng to",
+        "zoomOut": "Thu nhỏ",
+        "resetZoom": "Đặt lại zoom",
+        "rotateCamera": "Xoay theo chiều kim đồng hồ",
+        "rotateCameraCounterClockwise": "Xoay ngược chiều kim đồng hồ"
+      },
+      "layoutsControl": {
+        "startAnimation": "Tiếp tục hoạt ảnh layout",
+        "stopAnimation": "Dừng hoạt ảnh layout",
+        "layoutGraph": "Bố cục đồ thị",
+        "layouts": {
+          "Circular": "Vòng tròn",
+          "Circlepack": "Gói tròn",
+          "Random": "Ngẫu nhiên",
+          "Noverlaps": "Không chồng",
+          "Force Directed": "Lực định hướng",
+          "Force Atlas": "Force Atlas"
+        }
+      },
+      "fullScreenControl": {
+        "fullScreen": "Toàn màn hình",
+        "windowed": "Cửa sổ"
+      },
+      "legendControl": {
+        "toggleLegend": "Bật/tắt chú giải"
+      }
+    },
+    "statusIndicator": {
+      "connected": "Đã kết nối",
+      "disconnected": "Mất kết nối"
+    },
+    "statusCard": {
+      "unavailable": "Thông tin trạng thái không khả dụng",
+      "serverInfo": "Thông tin máy chủ",
+      "workingDirectory": "Thư mục làm việc",
+      "inputDirectory": "Thư mục đầu vào",
+      "maxParallelInsert": "Xử lý tài liệu đồng thời",
+      "summarySettings": "Cài đặt tóm tắt",
+      "llmConfig": "Cấu hình LLM",
+      "llmBinding": "LLM Binding",
+      "llmBindingHost": "LLM Endpoint",
+      "llmModel": "Model LLM",
+      "embeddingConfig": "Cấu hình Embedding",
+      "embeddingBinding": "Embedding Binding",
+      "embeddingBindingHost": "Embedding Endpoint",
+      "embeddingModel": "Model Embedding",
+      "storageConfig": "Cấu hình lưu trữ",
+      "kvStorage": "KV Storage",
+      "docStatusStorage": "Doc Status Storage",
+      "graphStorage": "Graph Storage",
+      "vectorStorage": "Vector Storage",
+      "workspace": "Workspace",
+      "maxGraphNodes": "Số node đồ thị tối đa",
+      "rerankerConfig": "Cấu hình Reranker",
+      "rerankerBindingHost": "Reranker Endpoint",
+      "rerankerModel": "Model Reranker",
+      "lockStatus": "Trạng thái khóa",
+      "threshold": "Ngưỡng"
+    },
+    "propertiesView": {
+      "editProperty": "Sửa {{property}}",
+      "editPropertyDescription": "Sửa giá trị thuộc tính trong vùng văn bản bên dưới.",
+      "errors": {
+        "duplicateName": "Tên node đã tồn tại",
+        "updateFailed": "Cập nhật node thất bại",
+        "tryAgainLater": "Vui lòng thử lại sau",
+        "updateSuccessButMergeFailed": "Đã cập nhật thuộc tính, nhưng gộp thất bại: {{error}}",
+        "mergeFailed": "Gộp thất bại: {{error}}"
+      },
+      "success": {
+        "entityUpdated": "Cập nhật node thành công",
+        "relationUpdated": "Cập nhật quan hệ thành công",
+        "entityMerged": "Gộp node thành công"
+      },
+      "mergeOptionLabel": "Tự động gộp khi tìm thấy tên trùng",
+      "mergeOptionDescription": "Nếu bật, đổi tên thành tên đã tồn tại sẽ gộp node này vào node hiện có.",
+      "mergeDialog": {
+        "title": "Node đã được gộp",
+        "description": "\"{{source}}\" đã được gộp vào \"{{target}}\".",
+        "refreshHint": "Làm mới đồ thị để tải cấu trúc mới nhất.",
+        "keepCurrentStart": "Làm mới và giữ node bắt đầu hiện tại",
+        "useMergedStart": "Làm mới và sử dụng node đã gộp",
+        "refreshing": "Đang làm mới đồ thị..."
+      },
+      "node": {
+        "title": "Node",
+        "id": "ID",
+        "labels": "Nhãn",
+        "degree": "Bậc",
+        "properties": "Thuộc tính",
+        "relationships": "Quan hệ (trong đồ thị con)",
+        "expandNode": "Mở rộng Node",
+        "pruneNode": "Cắt bỏ Node",
+        "deleteAllNodesError": "Từ chối xóa tất cả node trong đồ thị",
+        "nodesRemoved": "Đã xóa {{count}} node, bao gồm node mồ côi",
+        "noNewNodes": "Không tìm thấy node có thể mở rộng",
+        "propertyNames": {
+          "description": "Mô tả",
+          "entity_id": "Tên",
+          "entity_type": "Loại",
+          "source_id": "C-ID",
+          "Neighbour": "Láng giềng",
+          "file_path": "File",
+          "keywords": "Từ khóa",
+          "weight": "Trọng số"
+        }
+      },
+      "edge": {
+        "title": "Quan hệ",
+        "id": "ID",
+        "type": "Loại",
+        "source": "Nguồn",
+        "target": "Đích",
+        "properties": "Thuộc tính"
+      }
+    },
+    "search": {
+      "placeholder": "Tìm node trong trang...",
+      "message": "Và {{count}} khác"
+    },
+    "graphLabels": {
+      "selectTooltip": "Lấy đồ thị con của node (nhãn)",
+      "noLabels": "Không tìm thấy node phù hợp",
+      "label": "Tìm tên node",
+      "placeholder": "Tìm tên node...",
+      "andOthers": "Và {{count}} khác",
+      "refreshGlobalTooltip": "Làm mới dữ liệu đồ thị toàn cục và đặt lại lịch sử tìm kiếm",
+      "refreshCurrentLabelTooltip": "Làm mới dữ liệu đồ thị trang hiện tại",
+      "refreshingTooltip": "Đang làm mới dữ liệu..."
+    }
+  },
+  "apiKeyAlert": {
+    "title": "Yêu cầu API Key",
+    "description": "Vui lòng nhập API key để truy cập dịch vụ",
+    "placeholder": "Nhập API key",
+    "save": "Lưu"
+  },
+  "apiKey": {
+    "title": "Yêu cầu API Key",
+    "description": "Vui lòng nhập API key để truy cập hệ thống",
+    "label": "API Key",
+    "placeholder": "Nhập API key"
+  },
+  "pagination": {
+    "showing": "Hiển thị {{start}} đến {{end}} trong {{total}} mục",
+    "page": "Trang",
+    "pageSize": "Kích thước trang",
+    "firstPage": "Trang đầu",
+    "prevPage": "Trang trước",
+    "nextPage": "Trang sau",
+    "lastPage": "Trang cuối"
+  }
+}

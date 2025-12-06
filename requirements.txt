@@ -3,3 +3,4 @@ python-dotenv
 lightrag-hku
 nest-asyncio
 python-docx
+fastapi

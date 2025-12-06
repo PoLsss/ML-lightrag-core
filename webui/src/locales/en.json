@@ -1,0 +1,442 @@
+{
+  "settings": {
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "header": {
+    "documents": "Documents",
+    "knowledgeGraph": "Knowledge Graph",
+    "chat": "Chat",
+    "histories": "Histories",
+    "projectRepository": "Project Repository",
+    "logout": "Logout",
+    "frontendNeedsRebuild": "Frontend needs rebuild"
+  },
+  "chat": {
+    "title": "Chat with your Docs",
+    "subtitle": "Ask questions about your knowledge base",
+    "agentMode": "Smart mode: Auto-detects query type",
+    "agentModeTitle": "Agent Mode",
+    "agentModeDesc": "When enabled, automatically detects if your question needs document retrieval (RAG) or just a simple chat response.",
+    "inputPlaceholder": "Ask a question about your documents...",
+    "hint": "Press Enter to send, Shift+Enter for new line",
+    "streaming": "Streaming enabled",
+    "noStreaming": "Streaming disabled",
+    "clear": "Clear chat",
+    "newChat": "New Chat",
+    "error": "Sorry, an error occurred: ",
+    "welcome": {
+      "title": "Welcome to Master's UIT Chat",
+      "description": "Start asking questions about the documents you have uploaded. I will use the knowledge graph to provide accurate answers."
+    },
+    "suggestions": {
+      "1": "What are the main topics covered in the documents?",
+      "2": "The information about the graduation thesis",
+      "3": "What is the mode of study 2 research program?"
+    },
+    "stats": {
+      "title": "Chat Analytics",
+      "reset": "Reset",
+      "totalQueries": "Total Queries",
+      "messages": "Messages",
+      "avgResponse": "Avg Response",
+      "fastest": "Fastest",
+      "slowest": "Slowest Response",
+      "totalResponses": "Total Responses",
+      "tokensUsed": "Tokens Used",
+      "queryModes": "Query Modes",
+      "responseTimeTrend": "Response Time Trend",
+      "performance": "Performance",
+      "noData": "No data yet",
+      "older": "Older",
+      "newer": "Newer",
+      "ragQueries": "RAG Queries",
+      "chatQueries": "Chat Queries",
+      "usedRetrieval": "Used document retrieval",
+      "directResponse": "Direct LLM response"
+    }
+  },
+  "login": {
+    "description": "Please enter your account and password to log in to the system",
+    "username": "Username",
+    "usernamePlaceholder": "Please input a username",
+    "password": "Password",
+    "passwordPlaceholder": "Please input a password",
+    "loginButton": "Login",
+    "loggingIn": "Logging in...",
+    "successMessage": "Login succeeded",
+    "errorEmptyFields": "Please enter your username and password",
+    "errorInvalidCredentials": "Login failed, please check username and password",
+    "authDisabled": "Authentication is disabled. Using login free mode.",
+    "guestMode": "Login Free"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "saveFailed": "Save failed",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "documentPanel": {
+    "title": "Document Management",
+    "description": "Manage uploaded documents and their processing status",
+    "scanButton": "Scan",
+    "scanTooltip": "Scan and process documents in input folder, and also reprocess all failed documents",
+    "refreshTooltip": "Reset document list",
+    "selectAll": "Select All",
+    "selected": "{{count}} selected",
+    "showId": "Show ID",
+    "showFileName": "Show Filename",
+    "empty": "No documents found",
+    "emptyTitle": "No Documents",
+    "emptyDescription": "There are no uploaded documents yet.",
+    "loadingContent": "Loading document content...",
+    "noContent": "No content available",
+    "filters": {
+      "all": "All",
+      "processed": "Processed",
+      "processing": "Processing",
+      "pending": "Pending",
+      "failed": "Failed"
+    },
+    "columns": {
+      "id": "ID",
+      "fileName": "File Name",
+      "summary": "Summary",
+      "status": "Status",
+      "length": "Length",
+      "chunks": "Chunks",
+      "created": "Created",
+      "updated": "Updated",
+      "metadata": "Metadata",
+      "select": "Select",
+      "view": "View"
+    },
+    "status": {
+      "all": "All",
+      "completed": "Completed",
+      "preprocessed": "Preprocessed",
+      "processing": "Processing",
+      "pending": "Pending",
+      "failed": "Failed"
+    },
+    "pagination": {
+      "showing": "Showing {{start}} to {{end}} of {{total}}"
+    },
+    "upload": {
+      "button": "Upload",
+      "title": "Upload Documents",
+      "description": "Select files to upload",
+      "uploading": "Uploading...",
+      "success": "{{count}} files uploaded successfully",
+      "duplicate": "File already exists",
+      "unsupportedType": "Unsupported file type",
+      "fileTooLarge": "File too large, maximum size is {{maxSize}}",
+      "dropHere": "Drop the files here",
+      "dragAndDrop": "Drag and drop files here, or click to select files",
+      "removeFile": "Remove file",
+      "uploadDescription": "You can upload multiple files (up to {{maxSize}} each)",
+      "duplicateFile": "File name already exists in server cache"
+    },
+    "clear": {
+      "button": "Clear All",
+      "title": "Clear All Documents",
+      "description": "This will permanently delete all documents",
+      "warning": "This action cannot be undone!",
+      "confirmPrompt": "Type 'yes' to confirm",
+      "confirmPlaceholder": "yes",
+      "clearCache": "Also clear LLM cache",
+      "success": "All documents cleared",
+      "failed": "Failed to clear: {{message}}",
+      "error": "Error: {{error}}"
+    },
+    "delete": {
+      "button": "Delete",
+      "title": "Delete Documents",
+      "description": "Delete {{count}} selected document(s)",
+      "warning": "This action cannot be undone!",
+      "confirmPrompt": "Type 'yes' to confirm",
+      "confirmPlaceholder": "yes",
+      "deleteFile": "Also delete source files",
+      "deleteCache": "Also delete LLM cache",
+      "success": "{{count}} documents deleted",
+      "failed": "Failed to delete: {{message}}",
+      "error": "Error: {{error}}",
+      "busy": "Pipeline is busy, try again later",
+      "notAllowed": "Operation not allowed"
+    },
+    "pipeline": {
+      "title": "Pipeline Status",
+      "description": "View document processing pipeline status",
+      "busy": "Pipeline Busy",
+      "requestPending": "Request Pending",
+      "cancellationRequested": "Cancellation Requested",
+      "jobName": "Job Name",
+      "startTime": "Start Time",
+      "progress": "Progress",
+      "unit": "Batch",
+      "pipelineMessages": "Pipeline Messages",
+      "documents": "Documents",
+      "batches": "Batches",
+      "autoscanned": "Auto-scanned",
+      "latestMessage": "Latest Message",
+      "history": "History",
+      "noData": "No pipeline data",
+      "cancel": "Cancel",
+      "cancelTooltip": "Cancel pipeline processing",
+      "cancelConfirmTitle": "Confirm Pipeline Cancellation",
+      "cancelConfirmDescription": "This will interrupt the ongoing pipeline processing. Are you sure you want to continue?",
+      "cancelConfirmButton": "Confirm Cancellation",
+      "cancelInProgress": "Cancellation in progress...",
+      "pipelineNotRunning": "Pipeline not running",
+      "cancelSuccess": "Pipeline cancellation requested",
+      "cancelFailed": "Failed to cancel pipeline\n{{error}}",
+      "cancelNotBusy": "Pipeline is not running, no need to cancel",
+      "cancelRequested": "Pipeline cancellation requested"
+    },
+    "documentManager": {
+      "title": "Document Management",
+      "pipelineStatusButton": "Pipeline",
+      "pipelineStatusTooltip": "View document processing pipeline status",
+      "uploadedTitle": "Uploaded Documents",
+      "uploadedDescription": "List of uploaded documents and their statuses.",
+      "fileNameLabel": "File Name",
+      "showButton": "Show",
+      "hideButton": "Hide",
+      "showFileNameTooltip": "Show file name",
+      "hideFileNameTooltip": "Hide file name",
+      "errors": {
+        "loadFailed": "Failed to load documents\n{{error}}",
+        "scanFailed": "Failed to scan documents\n{{error}}",
+        "scanProgressFailed": "Failed to get scan progress\n{{error}}",
+        "loadContentFailed": "Failed to load document content\n{{error}}"
+      }
+    }
+  },
+  "graphPanel": {
+    "searchPlaceholder": "Search node label...",
+    "settings": "Settings",
+    "maxDepth": "Max Depth",
+    "maxNodes": "Max Nodes",
+    "loading": "Loading graph...",
+    "loadSuccess": "Loaded {{nodes}} nodes and {{edges}} edges",
+    "loadError": "Failed to load graph data",
+    "dataIsTruncated": "Graph data is truncated to Max Nodes",
+    "emptyGraph": "Empty(Try Reload Again)",
+    "legend": "Legend",
+    "nodeTypes": {
+      "person": "Person",
+      "category": "Category",
+      "geo": "Geographic",
+      "location": "Location",
+      "organization": "Organization",
+      "event": "Event",
+      "equipment": "Equipment",
+      "weapon": "Weapon",
+      "animal": "Animal",
+      "unknown": "Unknown",
+      "object": "Object",
+      "group": "Group",
+      "technology": "Technology",
+      "product": "Product",
+      "document": "Document",
+      "content": "Content",
+      "data": "Data",
+      "artifact": "Artifact",
+      "concept": "Concept",
+      "naturalobject": "Natural Object",
+      "method": "Method",
+      "creature": "Creature",
+      "plant": "Plant",
+      "disease": "Disease",
+      "drug": "Drug",
+      "food": "Food",
+      "other": "Other"
+    },
+    "statusDialog": {
+      "title": "LightRAG Server Settings",
+      "description": "View current system status and connection information"
+    },
+    "sideBar": {
+      "settings": {
+        "settings": "Settings",
+        "healthCheck": "Health Check",
+        "showPropertyPanel": "Show Property Panel",
+        "showSearchBar": "Show Search Bar",
+        "showNodeLabel": "Show Node Label",
+        "nodeDraggable": "Node Draggable",
+        "showEdgeLabel": "Show Edge Label",
+        "hideUnselectedEdges": "Hide Unselected Edges",
+        "edgeEvents": "Edge Events",
+        "maxQueryDepth": "Max Query Depth",
+        "maxNodes": "Max Nodes",
+        "maxLayoutIterations": "Max Layout Iterations",
+        "resetToDefault": "Reset to default",
+        "edgeSizeRange": "Edge Size Range",
+        "depth": "D",
+        "max": "Max",
+        "degree": "Degree",
+        "apiKey": "API Key",
+        "enterYourAPIkey": "Enter your API key",
+        "save": "Save",
+        "refreshLayout": "Refresh Layout"
+      },
+      "zoomControl": {
+        "zoomIn": "Zoom In",
+        "zoomOut": "Zoom Out",
+        "resetZoom": "Reset Zoom",
+        "rotateCamera": "Clockwise Rotate",
+        "rotateCameraCounterClockwise": "Counter-Clockwise Rotate"
+      },
+      "layoutsControl": {
+        "startAnimation": "Continue layout animation",
+        "stopAnimation": "Stop layout animation",
+        "layoutGraph": "Layout Graph",
+        "layouts": {
+          "Circular": "Circular",
+          "Circlepack": "Circlepack",
+          "Random": "Random",
+          "Noverlaps": "Noverlaps",
+          "Force Directed": "Force Directed",
+          "Force Atlas": "Force Atlas"
+        }
+      },
+      "fullScreenControl": {
+        "fullScreen": "Full Screen",
+        "windowed": "Windowed"
+      },
+      "legendControl": {
+        "toggleLegend": "Toggle Legend"
+      }
+    },
+    "statusIndicator": {
+      "connected": "Connected",
+      "disconnected": "Disconnected"
+    },
+    "statusCard": {
+      "unavailable": "Status information unavailable",
+      "serverInfo": "Server Info",
+      "workingDirectory": "Working Directory",
+      "inputDirectory": "Input Directory",
+      "maxParallelInsert": "Concurrent Doc Processing",
+      "summarySettings": "Summary Settings",
+      "llmConfig": "LLM Configuration",
+      "llmBinding": "LLM Binding",
+      "llmBindingHost": "LLM Endpoint",
+      "llmModel": "LLM Model",
+      "embeddingConfig": "Embedding Configuration",
+      "embeddingBinding": "Embedding Binding",
+      "embeddingBindingHost": "Embedding Endpoint",
+      "embeddingModel": "Embedding Model",
+      "storageConfig": "Storage Configuration",
+      "kvStorage": "KV Storage",
+      "docStatusStorage": "Doc Status Storage",
+      "graphStorage": "Graph Storage",
+      "vectorStorage": "Vector Storage",
+      "workspace": "Workspace",
+      "maxGraphNodes": "Max Graph Nodes",
+      "rerankerConfig": "Reranker Configuration",
+      "rerankerBindingHost": "Reranker Endpoint",
+      "rerankerModel": "Reranker Model",
+      "lockStatus": "Lock Status",
+      "threshold": "Threshold"
+    },
+    "propertiesView": {
+      "editProperty": "Edit {{property}}",
+      "editPropertyDescription": "Edit the property value in the text area below.",
+      "errors": {
+        "duplicateName": "Node name already exists",
+        "updateFailed": "Failed to update node",
+        "tryAgainLater": "Please try again later",
+        "updateSuccessButMergeFailed": "Properties updated, but merge failed: {{error}}",
+        "mergeFailed": "Merge failed: {{error}}"
+      },
+      "success": {
+        "entityUpdated": "Node updated successfully",
+        "relationUpdated": "Relation updated successfully",
+        "entityMerged": "Nodes merged successfully"
+      },
+      "mergeOptionLabel": "Automatically merge when a duplicate name is found",
+      "mergeOptionDescription": "If enabled, renaming to an existing name will merge this node into the existing one instead of failing.",
+      "mergeDialog": {
+        "title": "Node merged",
+        "description": "\"{{source}}\" has been merged into \"{{target}}\".",
+        "refreshHint": "Refresh the graph to load the latest structure.",
+        "keepCurrentStart": "Refresh and keep current start node",
+        "useMergedStart": "Refresh and use merged node",
+        "refreshing": "Refreshing graph..."
+      },
+      "node": {
+        "title": "Node",
+        "id": "ID",
+        "labels": "Labels",
+        "degree": "Degree",
+        "properties": "Properties",
+        "relationships": "Relations(within subgraph)",
+        "expandNode": "Expand Node",
+        "pruneNode": "Prune Node",
+        "deleteAllNodesError": "Refuse to delete all nodes in the graph",
+        "nodesRemoved": "{{count}} nodes removed, including orphan nodes",
+        "noNewNodes": "No expandable nodes found",
+        "propertyNames": {
+          "description": "Description",
+          "entity_id": "Name",
+          "entity_type": "Type",
+          "source_id": "C-ID",
+          "Neighbour": "Neigh",
+          "file_path": "File",
+          "keywords": "Keys",
+          "weight": "Weight"
+        }
+      },
+      "edge": {
+        "title": "Relationship",
+        "id": "ID",
+        "type": "Type",
+        "source": "Source",
+        "target": "Target",
+        "properties": "Properties"
+      }
+    },
+    "search": {
+      "placeholder": "Search nodes in page...",
+      "message": "And {{count}} others"
+    },
+    "graphLabels": {
+      "selectTooltip": "Get subgraph of a node (label)",
+      "noLabels": "No matching nodes found",
+      "label": "Search node name",
+      "placeholder": "Search node name...",
+      "andOthers": "And {{count}} others",
+      "refreshGlobalTooltip": "Refresh global graph data and reset search history",
+      "refreshCurrentLabelTooltip": "Refresh current page graph data",
+      "refreshingTooltip": "Refreshing data..."
+    }
+  },
+  "apiKeyAlert": {
+    "title": "API Key is required",
+    "description": "Please enter your API key to access the service",
+    "placeholder": "Enter your API key",
+    "save": "Save"
+  },
+  "apiKey": {
+    "title": "API Key Required",
+    "description": "Please enter your API key to access the system",
+    "label": "API Key",
+    "placeholder": "Enter your API key"
+  },
+  "pagination": {
+    "showing": "Showing {{start}} to {{end}} of {{total}} entries",
+    "page": "Page",
+    "pageSize": "Page Size",
+    "firstPage": "First Page",
+    "prevPage": "Previous Page",
+    "nextPage": "Next Page",
+    "lastPage": "Last Page"
+  }
+}

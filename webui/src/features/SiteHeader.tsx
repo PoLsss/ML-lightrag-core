@@ -43,14 +43,6 @@ function TabsNavigation() {
         <NavigationTab value="knowledge-graph" currentTab={currentTab}>
           {t('header.knowledgeGraph')}
         </NavigationTab>
-        {/* Hidden Retrieval and API tabs
-        <NavigationTab value="retrieval" currentTab={currentTab}>
-          {t('header.retrieval')}
-        </NavigationTab>
-        <NavigationTab value="api" currentTab={currentTab}>
-          {t('header.api')}
-        </NavigationTab>
-        */}
       </TabsList>
     </div>
   )
@@ -58,20 +50,19 @@ function TabsNavigation() {
 
 export default function SiteHeader() {
   const { t } = useTranslation()
-  const { isGuestMode, coreVersion, apiVersion, username, webuiTitle, webuiDescription } = useAuthStore()
+  const { isGuestMode, coreVersion, apiVersion, webuiTitle, webuiDescription } = useAuthStore()
 
-  const versionDisplay = (coreVersion && apiVersion)
-    ? `${coreVersion}/${apiVersion}`
-    : null;
+  const versionDisplay = coreVersion && apiVersion ? `${coreVersion}/${apiVersion}` : null
 
-  // Check if frontend needs rebuild (apiVersion ends with warning symbol)
-  const hasWarning = apiVersion?.endsWith('⚠️');
+  const hasWarning = apiVersion?.endsWith('⚠️')
   const versionTooltip = hasWarning
     ? t('header.frontendNeedsRebuild')
-    : versionDisplay ? `v${versionDisplay}` : '';
+    : versionDisplay
+      ? `v${versionDisplay}`
+      : ''
 
   const handleLogout = () => {
-    navigationService.navigateToLogin();
+    navigationService.navigateToLogin()
   }
 
   return (
@@ -87,14 +78,10 @@ export default function SiteHeader() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="font-medium text-sm cursor-default">
-                    {webuiTitle}
-                  </span>
+                  <span className="font-medium text-sm cursor-default">{webuiTitle}</span>
                 </TooltipTrigger>
                 {webuiDescription && (
-                  <TooltipContent side="bottom">
-                    {webuiDescription}
-                  </TooltipContent>
+                  <TooltipContent side="bottom">{webuiDescription}</TooltipContent>
                 )}
               </Tooltip>
             </TooltipProvider>
@@ -121,26 +108,18 @@ export default function SiteHeader() {
                     v{versionDisplay}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {versionTooltip}
-                </TooltipContent>
+                <TooltipContent side="bottom">{versionTooltip}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
-          <Button variant="ghost" size="icon" side="bottom" tooltip={t('header.projectRepository')}>
+          <Button variant="ghost" size="icon">
             <a href={SiteInfo.github} target="_blank" rel="noopener noreferrer">
               <GithubIcon className="size-4" aria-hidden="true" />
             </a>
           </Button>
           <AppSettings />
           {!isGuestMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              side="bottom"
-              tooltip={`${t('header.logout')} (${username})`}
-              onClick={handleLogout}
-            >
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOutIcon className="size-4" aria-hidden="true" />
             </Button>
           )}

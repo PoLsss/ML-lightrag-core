@@ -162,13 +162,13 @@ function App() {
     }
   }, [message])
 
-  // Define tabs, excluding Retrieval and API tabs
+  // Define tabs
   const tabs = [
     { key: 'documents', label: 'Documents' },
     { key: 'knowledge-graph', label: 'Knowledge Graph' },
-    // { key: 'retrieval', label: 'Retrieval' }, // Exclude Retrieval tab
-    // { key: 'api', label: 'API' }, // Exclude API tab
-  ].filter(tab => tab.key !== 'retrieval' && tab.key !== 'api');
+    { key: 'retrieval', label: 'Retrieval' },
+    { key: 'api', label: 'API' },
+  ];
 
   return (
     <ThemeProvider>
@@ -218,14 +218,12 @@ function App() {
                 <TabsContent value="knowledge-graph" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
                   <GraphViewer />
                 </TabsContent>
-                {/* Hidden Retrieval and API tabs
                 <TabsContent value="retrieval" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
                   <RetrievalTesting />
                 </TabsContent>
                 <TabsContent value="api" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
                   <ApiSite />
                 </TabsContent>
-                */}
               </div>
             </Tabs>
             {enableHealthCheck && <StatusIndicator />}

@@ -224,19 +224,28 @@ export default function DocumentManager() {
     try {
       const response = await getDocumentContent(doc.id)
       if (isMountedRef.current) {
-        setDocContent(response.content)
+        setDocContent(response.content || '')
       }
     } catch (err) {
       if (isMountedRef.current) {
-        toast.error(t('documentPanel.documentManager.errors.loadContentFailed', { error: errorMessage(err) }))
+        const errMsg = errorMessage(err)
+        // Check if it's a 404 error (document not found)
+        if (errMsg.includes('404') || errMsg.includes('not found')) {
+          toast.error(t('documentPanel.documentManager.errors.documentNotFound', { id: doc.id }))
+          // Refresh the document list to sync with backend
+          fetchDocuments()
+        } else {
+          toast.error(t('documentPanel.documentManager.errors.loadContentFailed', { error: errMsg }))
+        }
         setDocContent('')
+        setViewingDoc(null)
       }
     } finally {
       if (isMountedRef.current) {
         setIsLoadingContent(false)
       }
     }
-  }, [viewingDoc, t])
+  }, [viewingDoc, t, fetchDocuments])
 
   const handleCloseContentPreview = useCallback(() => {
     setViewingDoc(null)

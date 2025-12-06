@@ -43,14 +43,12 @@ function TabsNavigation() {
         <NavigationTab value="knowledge-graph" currentTab={currentTab}>
           {t('header.knowledgeGraph')}
         </NavigationTab>
-        {/* Hidden Retrieval and API tabs
         <NavigationTab value="retrieval" currentTab={currentTab}>
           {t('header.retrieval')}
         </NavigationTab>
         <NavigationTab value="api" currentTab={currentTab}>
           {t('header.api')}
         </NavigationTab>
-        */}
       </TabsList>
     </div>
   )

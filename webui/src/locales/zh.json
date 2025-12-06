@@ -208,7 +208,9 @@
       "errors": {
         "loadFailed": "Tải tài liệu thất bại\n{{error}}",
         "scanFailed": "Quét tài liệu thất bại\n{{error}}",
-        "scanProgressFailed": "Lấy tiến trình quét thất bại\n{{error}}"
+        "scanProgressFailed": "Lấy tiến trình quét thất bại\n{{error}}",
+        "loadContentFailed": "Tải nội dung tài liệu thất bại\n{{error}}",
+        "documentNotFound": "Không tìm thấy tài liệu (ID: {{id}}). Danh sách đã được làm mới."
       }
     }
   },

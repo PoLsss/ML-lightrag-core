@@ -2290,6 +2290,7 @@ def create_document_routes(
         Get the full content of a document by its ID.
 
         This endpoint retrieves the complete content of a document from the full_docs storage.
+        If not found in full_docs, it will reconstruct content from text_chunks.
 
         Args:
             request: DocContentRequest containing 'doc_id' - The unique identifier of the document
@@ -2312,19 +2313,57 @@ def create_document_routes(
                 raise HTTPException(status_code=400, detail="Document ID cannot be empty")
 
             doc_id = doc_id.strip()
-
-            # Get document content from full_docs storage
-            content_data = await rag.full_docs.get_by_id(doc_id)
-
-            if not content_data:
+            
+            # First, get document status to get file_path and chunks_list
+            doc_status_data = await rag.doc_status.get_by_id(doc_id)
+            
+            if not doc_status_data:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Document with ID '{doc_id}' not found"
                 )
+            
+            file_path = doc_status_data.get("file_path", None)
+            content = None
 
-            # Extract content and file_path
-            content = content_data.get("content", "")
-            file_path = content_data.get("file_path", None)
+            # Try to get document content from full_docs storage first
+            content_data = await rag.full_docs.get_by_id(doc_id)
+            
+            if content_data and content_data.get("content"):
+                content = content_data.get("content", "")
+                if not file_path:
+                    file_path = content_data.get("file_path", None)
+            else:
+                # Fallback: Reconstruct content from text_chunks
+                logger.info(f"Document {doc_id} not in full_docs, reconstructing from text_chunks")
+                
+                chunks_list = doc_status_data.get("chunks_list", [])
+                
+                if chunks_list:
+                    # Get all chunks and combine them
+                    chunks_content = []
+                    for chunk_id in chunks_list:
+                        chunk_data = await rag.text_chunks.get_by_id(chunk_id)
+                        if chunk_data and "content" in chunk_data:
+                            chunks_content.append(chunk_data["content"])
+                    
+                    if chunks_content:
+                        content = "\n\n".join(chunks_content)
+                        logger.info(f"Reconstructed content for {doc_id} from {len(chunks_content)} chunks")
+                    else:
+                        # Use content_summary as last resort
+                        content = doc_status_data.get("content_summary", "")
+                        logger.warning(f"No chunks found for {doc_id}, using content_summary")
+                else:
+                    # No chunks list, use content_summary
+                    content = doc_status_data.get("content_summary", "")
+                    logger.warning(f"No chunks_list for {doc_id}, using content_summary")
+
+            if not content:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No content available for document '{doc_id}'"
+                )
 
             return DocContentResponse(
                 id=doc_id,

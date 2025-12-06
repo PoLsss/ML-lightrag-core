@@ -107,18 +107,18 @@ The custom WebUI is developed separately with a better interface and additional 
 
 **Windows:**
 Install Node.js LTS on Windows via CMD / PowerShell
-
+```bash
  1. Open **PowerShell** (Run as Administrator)
 
  2. Run this command to download and install Node.js LTS:
 ```powershell
 winget install OpenJS.NodeJS.LTS
-```
-3. Open a new PowerShell and verify:
-   ```powershell
+
+ 3. Open a new PowerShell and verify:
+```powershell
    node --version   # Should display v18.x.x or higher
    npm --version    # Should display 9.x.x or higher
-   ```
+```
 
 **Linux (Ubuntu/Debian):**
 ```bash

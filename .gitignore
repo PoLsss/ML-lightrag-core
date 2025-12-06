@@ -41,6 +41,8 @@ webui/dist/
 .env.local
 .env.*.local
 .env.production
+.env.development
+webui/.env.development
 *.env
 
 # IDE

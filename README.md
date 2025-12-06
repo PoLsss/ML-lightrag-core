@@ -1,60 +1,265 @@
-## Chatbox with lightrag core to retrival UIT' master related
+# 🎓 UIT Master Chatbot - LightRAG
 
-Tạo 1 folder chứa project
-Mở terminal và thực hiện theo các bước sau:
-1. clone repo
+A chatbot system for answering questions about the Master's program at UIT (University of Information Technology), using LightRAG for information retrieval and processing.
+
+## 📋 Table of Contents
+
+- [System Requirements](#-system-requirements)
+- [Installation](#-installation)
+  - [1. Clone repository](#1-clone-repository)
+  - [2. Setup Python environment](#2-setup-python-environment)
+  - [3. Configure environment](#3-configure-environment)
+  - [4. Start Docker](#4-start-docker)
+  - [5. Setup Custom WebUI](#5-setup-custom-webui)
+- [Usage](#-usage)
+- [Project Structure](#-project-structure)
+
+---
+
+## 🖥️ System Requirements
+
+### Required:
+- **Python**: 3.10 or higher
+- **Docker Desktop**: [Download here](https://www.docker.com/products/docker-desktop/)
+- **Node.js**: 18.x or higher (for WebUI)
+- **npm**: 9.x or higher (comes with Node.js)
+- **Git**: [Download here](https://git-scm.com/downloads)
+
+### Check installed versions:
+```bash
+python --version      # Python 3.10+
+node --version        # v18.0.0+
+npm --version         # 9.0.0+
+docker --version      # Docker 24.0+
+git --version         # git 2.0+
 ```
+
+---
+
+## 🚀 Installation
+
+### 1. Clone repository
+
+```bash
+# Create project folder and clone
 git clone https://github.com/PoLsss/ML-lightrag-core.git
 cd ML-lightrag-core
 ```
-2. Tạo môi trường python ảo
-```
+
+### 2. Setup Python environment
+
+**Windows:**
+```powershell
+# Create virtual environment
 python -m venv venv
 
-.\venv\Scripts\activate       #for win
-or
-source venv/bin/activate      #for linux
+# Activate environment
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
 ```
-3. Install nessecary libraries
+
+**Linux/macOS:**
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate environment
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
 ```
-pip install -r .\requirements.txt
-```
-4. Set up env
-```
+
+### 3. Configure environment
+
+```bash
 cd LightRag
 cp env.example .env
 ```
-5.
- - Tìm file .env trong thư mục LightRag, xóa tất cả nội dung trong đó
- - Vào link gg doc: https://docs.google.com/document/d/16xjDEykmz1YuYrCSfYhQjASg_CG_itRTbk953etIiEk/edit?tab=t.0
- - Coppy tất cả nội dung ở tap "file .env" vào file .env trên -> save.
+config your setup in the .env file
 
-6. Quay lại terminal và chạy lệnh sau
+### 4. Start Docker
+
+> ⚠️ **Note**: Make sure Docker Desktop is running before executing this command!
+
+**Windows:**
+```powershell
+docker compose up -d
 ```
-docker compose up -d   #for win, phải start docker desktop trước khi chạy lệnh này
-or
-sudo docker compose up -d     #for linux
+
+**Linux/macOS:**
+```bash
+sudo docker compose up -d
 ```
-- Sau khi chạy 1 lúc (khoảng 10s) thì có thể truy cập vào webui của lightrag bằng địa chỉ: http://localhost:9621/webui/
-- Giao diện sẽ như sau, tại đậy có thể upload thủ công 1 số file để test với chatbox
 
-<img width="2774" height="837" alt="image" src="https://github.com/user-attachments/assets/9b01aec0-9626-48c1-9196-e7091975dd09" />
+Wait about 10-30 seconds for the containers to start. Then access:
+- **LightRAG WebUI (original)**: http://localhost:9621/webui/
 
+---
 
-7. Khởi động chatbox
- - Trong thư mục ML-lightrag-core, mở 1 terminal mới và chạy lệnh sau
+### 5. Setup Custom WebUI
+
+The custom WebUI is developed separately with a better interface and additional features.
+
+#### 5.1. Install Node.js (if not installed)
+
+**Windows:**
+Install Node.js LTS on Windows via CMD / PowerShell
+
+ 1. Open **PowerShell** (Run as Administrator)
+
+ 2. Run this command to download and install Node.js LTS:
+```powershell
+winget install OpenJS.NodeJS.LTS
+
+3. Open a new PowerShell and verify:
+   ```powershell
+   node --version   # Should display v18.x.x or higher
+   npm --version    # Should display 9.x.x or higher
+   ```
+
+**Linux (Ubuntu/Debian):**
+```bash
+# Install Node.js 20.x LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify
+node --version
+npm --version
 ```
-.\venv\Scripts\activate       #for win
-or
-source venv/bin/activate      #for linux
 
-python main.py
+**macOS:**
+```bash
+# Using Homebrew
+brew install node
+
+# Or download from https://nodejs.org/
 ```
-Chưa hỗ trợ upload file tự động.
-Kết quả demo: Hiện tại chỉ mới upload file "cam_nang_sau_dai_hoc_2025_0.pdf" từ trang 1-43, nên sẽ có rất it thông tin nào về UIT, chỉ có vài file mẫu không liên quan để test
 
+#### 5.2. Install WebUI dependencies
 
+```bash
+# From the ML-lightrag-core root folder, navigate to webui folder
+cd webui
 
-<img width="2326" height="794" alt="image" src="https://github.com/user-attachments/assets/852c782e-750b-4935-bbf3-9ae5816ad2cd" />
+# Install packages
+npm install
+```
+
+> 💡 **Note**: This process may take 2-5 minutes depending on network speed.
+
+#### 5.3. Configure WebUI
+
+Create `.env.development` file in the `webui` folder:
+
+```bash
+# Windows (PowerShell)
+cp .env.example .env.development
+
+# Linux/macOS
+cp .env.example .env.development
+```
+
+Open `webui/.env.development` and edit:
+
+```env
+# LightRAG backend API endpoint
+VITE_API_BASE_URL=http://localhost:9621
+
+# OpenAI API Key (get from https://platform.openai.com/api-keys)
+VITE_OPENAI_API_KEY=sk-your-api-key-here
+
+# Model to use
+VITE_OPENAI_MODEL=gpt-4o-mini
+```
+
+#### 5.4. Run WebUI
+
+```bash
+# Make sure you're in the webui folder
+cd webui
+
+# Run development server
+npm run dev
+```
+
+WebUI will run at: **http://localhost:3000**
+
+---
+
+## 📖 Usage
+
+### Main tabs:
+
+| Tab | Function |
+|-----|----------|
+| **💬 Chat** | Chat with the bot, ask questions about UIT |
+| **📊 Knowledge Graph** | View the extracted knowledge graph |
+| **📁 Documents** | Manage documents (upload, view, delete) |
+| **📜 Histories** | View conversation history |
+
+### Query modes:
+
+- **Local**: Search in narrow scope, specific answers
+- **Global**: Search for overview, general answers
+- **Hybrid**: Combination of Local and Global
+- **Mix** (default): Automatically selects the most suitable mode
+
+### Agent Mode:
+Enable Agent mode for more complex reasoning capabilities and automatic tool selection.
+
+---
+
+## 📁 Project Structure
+
+```
+ML-lightrag-core/
+├── LightRag/              # LightRAG core (backend API)
+│   ├── .env               # Backend configuration (API keys, database)
+│   ├── docker-compose.yml # Docker configuration
+│   ├── lightrag/          # LightRAG source code
+│   └── data/              # Indexed data
+├── webui/                 # Custom WebUI (frontend)
+│   ├── src/               # React source code
+│   ├── .env.development   # Frontend configuration
+│   └── package.json       # Dependencies
+├── requirements.txt       # Python dependencies
+└── README.md              # This file
+```
+
+---
+
+## ❓ Troubleshooting
+
+### Common errors:
+
+**1. Docker won't start:**
+```
+Error: Cannot connect to the Docker daemon
+```
+→ Open Docker Desktop and wait for it to fully start.
+
+**2. npm install fails:**
+```
+npm ERR! code ENOENT
+```
+→ Check if Node.js is installed correctly: `node --version`
+
+**3. WebUI can't connect to backend:**
+```
+Network Error / 404
+```
+→ Check if Docker containers are running: `docker ps`
+→ Make sure `VITE_API_BASE_URL=http://localhost:9621` is in `.env.development`
+
+**4. API Key error:**
+```
+Invalid API Key
+```
+→ Check the API key in `.env.development` file
+
 
 

@@ -113,7 +113,7 @@ Install Node.js LTS on Windows via CMD / PowerShell
  2. Run this command to download and install Node.js LTS:
 ```powershell
 winget install OpenJS.NodeJS.LTS
-
+```
 3. Open a new PowerShell and verify:
    ```powershell
    node --version   # Should display v18.x.x or higher

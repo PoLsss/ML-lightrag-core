@@ -1,24 +1,31 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022", // Nâng lên ES2022 cho hiện đại hơn (hoặc giữ ES2020 nếu cần hỗ trợ trình duyệt cũ)
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"], // Cập nhật theo target
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true, // Gợi ý thêm: Cho phép import file .json
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+
+    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+
+    /* Path Alias & Node Types */
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    // QUAN TRỌNG: Thêm dòng này để fix lỗi 'path' và '__dirname' trong vite.config.ts
+    "types": ["node"] 
   },
   "include": ["src", "vite.config.ts"]
 }

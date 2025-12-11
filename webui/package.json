@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "backend": "python backend/main.py",
+    "backend": "python ../LightRag/main.py",
     "start": "concurrently \"npm run backend\" \"npm run dev\""
   },
   "dependencies": {
@@ -32,7 +32,7 @@
     "@react-sigma/layout-circlepack": "^5.0.6",
     "@react-sigma/layout-circular": "^5.0.6",
     "@react-sigma/layout-force": "^5.0.6",
-    "@react-sigma/layout-forceatlas2": "^5.0.4",
+    "@react-sigma/layout-forceatlas2": "^5.0.6",
     "@react-sigma/layout-noverlap": "^5.0.6",
     "@react-sigma/layout-random": "^5.0.6",
     "@sigma/edge-curve": "^3.1.0",

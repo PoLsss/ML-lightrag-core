@@ -35,8 +35,8 @@ const GraphControl = () => {
     // Dùng requestAnimationFrame để đảm bảo WebGL context không đang bận
     const frameId = requestAnimationFrame(() => {
       try {
-        // Chỉ refresh nếu graph đang có dữ liệu
-        if (!sigma.isKilled() && sigma.getGraph().order > 0) {
+        // Chỉ refresh nếu graph đang có dữ liệu và sigma vẫn hoạt động
+        if (sigma && sigma.getGraph && sigma.getGraph().order > 0) {
           console.log("Theme changed, refreshing graph view...");
           sigma.refresh();
         }

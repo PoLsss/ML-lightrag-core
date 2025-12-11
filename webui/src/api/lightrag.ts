@@ -472,10 +472,19 @@ export const queryTextStream = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    
+    // Batching variables for smoother streaming
+    let chunkBuffer = "";
+    let chunkCount = 0;
+    const CHUNK_BATCH_SIZE = 3; // Batch every 3 chunks to reduce UI updates
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
+        // Send any remaining buffered chunks
+        if (chunkBuffer) {
+          onChunk(chunkBuffer);
+        }
         break;
       }
 
@@ -488,9 +497,17 @@ export const queryTextStream = async (
           try {
             const parsed = JSON.parse(line);
 
-            // Xử lý response text chunk
+            // Xử lý response text chunk với batching
             if (parsed.response) {
-              onChunk(parsed.response);
+              chunkBuffer += parsed.response;
+              chunkCount++;
+              
+              // Send batch when we have enough chunks or at significant intervals
+              if (chunkCount >= CHUNK_BATCH_SIZE) {
+                onChunk(chunkBuffer);
+                chunkBuffer = "";
+                chunkCount = 0;
+              }
             }
 
             // [NEW] Xử lý context_data (chứa entities cho Graph)

@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useDebouncedCallback } from "@/hooks/useDebounce";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChatStore, ChatMessage, QueryType } from "@/stores/chat";
@@ -136,11 +137,11 @@ const MarkdownComponents = {
         {children}
       </code>
     ) : (
-      <pre className="bg-muted p-3 rounded-lg overflow-x-auto my-2">
-        <code className="text-xs font-mono" {...props}>
+      <div className="bg-muted p-3 rounded-lg overflow-x-auto my-2">
+        <code className="text-xs font-mono block" {...props}>
           {children}
         </code>
-      </pre>
+      </div>
     ),
   blockquote: ({ children, ...props }: any) => (
     <blockquote
@@ -182,7 +183,7 @@ interface MessageBubbleProps {
   onCopy: (text: string) => void;
 }
 
-function MessageBubble({ message, onCopy }: MessageBubbleProps) {
+const MessageBubble = React.memo(({ message, onCopy }: MessageBubbleProps) => {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
 
@@ -335,7 +336,7 @@ function MessageBubble({ message, onCopy }: MessageBubbleProps) {
       </div>
     </div>
   );
-}
+});
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -430,12 +431,25 @@ export default function ChatPanel() {
   const startNewConversation = useChatStore.use.startNewConversation();
   const querySettings = useSettingsStore.use.querySettings();
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = useCallback((smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ 
+      behavior: smooth ? "smooth" : "auto",
+      block: "end"
+    });
   }, []);
+  
+  // Debounced scroll để tránh scroll quá nhiều khi streaming
+  const debouncedScrollToBottom = useDebouncedCallback(() => scrollToBottom(false), 100);
+  
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    // Chỉ scroll smooth khi không đang loading (tức là khi user gửi tin nhắn mới)
+    // Khi streaming thì dùng debounced scroll
+    if (!isLoading) {
+      scrollToBottom(true);
+    } else {
+      debouncedScrollToBottom();
+    }
+  }, [messages, scrollToBottom, debouncedScrollToBottom, isLoading]);
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard.writeText(text);
@@ -505,9 +519,11 @@ export default function ChatPanel() {
         }
 
         let fullResponse = "";
+        let streamUpdateTimeout: NodeJS.Timeout | null = null;
+        let pendingUpdate = false;
 
         if (streamEnabled) {
-          // [UPDATED] Gọi hàm stream với tham số mới
+          // [UPDATED] Gọi hàm stream với tham số mới và throttling
           await queryTextStream(
             {
               query: content,
@@ -518,10 +534,18 @@ export default function ChatPanel() {
             },
             (chunk) => {
               fullResponse += chunk;
-              updateMessage(assistantId, {
-                content: fullResponse,
-                isThinking: false,
-              });
+              
+              // Throttle UI updates to reduce jitter - only update every 50ms
+              if (!pendingUpdate) {
+                pendingUpdate = true;
+                streamUpdateTimeout = setTimeout(() => {
+                  updateMessage(assistantId, {
+                    content: fullResponse,
+                    isThinking: false,
+                  });
+                  pendingUpdate = false;
+                }, 50);
+              }
             },
             // [NEW] Callback nhận context data
             (contextData) => {
@@ -534,9 +558,23 @@ export default function ChatPanel() {
               }
             },
             (error) => {
+              // Clear any pending updates on error
+              if (streamUpdateTimeout) {
+                clearTimeout(streamUpdateTimeout);
+                streamUpdateTimeout = null;
+              }
               throw new Error(error);
             }
           );
+          
+          // Ensure final update after stream completes
+          if (streamUpdateTimeout) {
+            clearTimeout(streamUpdateTimeout);
+          }
+          updateMessage(assistantId, {
+            content: fullResponse,
+            isThinking: false,
+          });
         } else {
           // Non-streaming
           const response = await queryText({

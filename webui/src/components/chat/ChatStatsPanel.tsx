@@ -20,9 +20,10 @@ interface StatCardProps {
   icon: React.ReactNode
   trend?: 'up' | 'down' | 'neutral'
   color?: 'emerald' | 'blue' | 'purple' | 'orange' | 'pink'
+  compact?: boolean
 }
 
-function StatCard({ title, value, subtitle, icon, color = 'emerald' }: StatCardProps) {
+function StatCard({ title, value, subtitle, icon, color = 'emerald', compact = false }: StatCardProps) {
   const colorClasses = {
     emerald: 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
     blue: 'bg-gradient-to-br from-blue-500/20 to-sky-500/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
@@ -39,22 +40,31 @@ function StatCard({ title, value, subtitle, icon, color = 'emerald' }: StatCardP
     pink: 'bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/30'
   }
 
+  const valueWrapperClasses = cn(
+    compact ? 'text-xl font-semibold mt-1' : 'text-2xl font-bold mt-1',
+    subtitle ? 'leading-tight' : ''
+  )
+
   return (
     <div className={cn(
-      'rounded-xl border-2 p-4 hover:shadow-lg transition-all duration-200',
+      'rounded-xl border-2 transition-all duration-200 hover:shadow-lg',
+      compact ? 'p-3' : 'p-4',
       colorClasses[color]
     )}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <p className={cn(
+            compact ? 'text-[10px]' : 'text-xs',
+            'font-semibold text-muted-foreground uppercase tracking-wider'
+          )}>
             {title}
           </p>
-          <p className="text-2xl font-bold mt-1">{value}</p>
+          <p className={valueWrapperClasses}>{value}</p>
           {subtitle && (
-            <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+            <p className={cn('text-xs text-muted-foreground mt-1', compact ? 'text-[10px]' : '')}>{subtitle}</p>
           )}
         </div>
-        <div className={cn('p-2.5 rounded-xl', iconBgClasses[color])}>
+        <div className={cn(compact ? 'p-2' : 'p-2.5', 'rounded-xl', iconBgClasses[color])}>
           {icon}
         </div>
       </div>
@@ -81,21 +91,21 @@ function ModeChart({ queriesPerMode }: ModeChartProps) {
   const total = Object.values(queriesPerMode).reduce((a, b) => a + b, 0)
 
   return (
-    <div className="bg-card rounded-xl border border-border p-4">
-      <div className="flex items-center gap-2 mb-4">
+    <div className="bg-white/80 dark:bg-slate-900/65 rounded-2xl border border-emerald-200/60 p-3 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
         <PieChartIcon className="size-4 text-muted-foreground" />
         <h3 className="font-semibold text-sm">{t('chat.stats.queryModes', 'Query Modes')}</h3>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2 text-[11px]">
         {modes.map(({ key, label, color }) => {
           const count = queriesPerMode[key] || 0
           const percentage = total > 0 ? (count / total) * 100 : 0
           
           return (
             <div key={key} className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{label}</span>
-                <span className="font-medium">{count} ({percentage.toFixed(0)}%)</span>
+                <span className="font-medium text-[11px]">{count} ({percentage.toFixed(0)}%)</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div 
@@ -122,12 +132,12 @@ function ResponseTimeChart({ responseTimes }: ResponseTimeChartProps) {
   const displayTimes = responseTimes.slice(-20) // Show last 20
 
   return (
-    <div className="bg-card rounded-xl border border-border p-4">
+    <div className="bg-card rounded-xl border border-border p-3">
       <div className="flex items-center gap-2 mb-4">
         <BarChart3Icon className="size-4 text-muted-foreground" />
         <h3 className="font-semibold text-sm">{t('chat.stats.responseTimeTrend', 'Response Time Trend')}</h3>
       </div>
-      <div className="h-32 flex items-end gap-1">
+      <div className="h-28 flex items-end gap-0.5">
         {displayTimes.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
             {t('chat.stats.noData', 'No data yet')}
@@ -177,9 +187,9 @@ export default function ChatStatsPanel() {
   }), [stats, messages.length])
 
   return (
-    <div className="h-full flex flex-col bg-muted/30 border-l border-border">
+    <div className="h-full flex flex-col border-l border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white/90 shadow-inner">
       {/* Header */}
-      <div className="p-4 border-b border-border bg-card">
+      <div className="p-4 border-b border-emerald-200/70 bg-white/90 dark:bg-slate-950/70 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ActivityIcon className="size-5 text-emerald-500" />
@@ -187,7 +197,7 @@ export default function ChatStatsPanel() {
           </div>
           <button
             onClick={() => resetStats()}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-[11px] text-emerald-600 hover:text-emerald-700 transition-colors"
           >
             {t('chat.stats.reset', 'Reset')}
           </button>
@@ -195,63 +205,59 @@ export default function ChatStatsPanel() {
       </div>
 
       {/* Stats Content */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            title={t('chat.stats.totalQueries', 'Total Queries')}
-            value={stats.totalQueries}
-            icon={<MessageSquareIcon className="size-4" />}
-            color="emerald"
-          />
-          <StatCard
-            title={t('chat.stats.messages', 'Messages')}
-            value={formattedStats.messageCount}
-            icon={<ZapIcon className="size-4" />}
-            color="blue"
-          />
-        </div>
+      <div className="flex-1 overflow-auto px-4 py-5 space-y-4">
+        <ResponseTimeChart responseTimes={stats.responseTimes} />
 
-        {/* Response Time Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <StatCard
             title={t('chat.stats.avgResponse', 'Avg Response')}
             value={formattedStats.avgResponseTime}
             icon={<ClockIcon className="size-4" />}
             color="emerald"
+            compact
           />
           <StatCard
             title={t('chat.stats.fastest', 'Fastest')}
             value={formattedStats.fastestResponse}
             icon={<TimerIcon className="size-4" />}
             color="blue"
+            compact
+          />
+          <StatCard
+            title={t('chat.stats.totalQueries', 'Total Queries')}
+            value={stats.totalQueries}
+            icon={<MessageSquareIcon className="size-4" />}
+            color="emerald"
+            compact
+          />
+          <StatCard
+            title={t('chat.stats.messages', 'Messages')}
+            value={formattedStats.messageCount}
+            icon={<ZapIcon className="size-4" />}
+            color="blue"
+            compact
           />
         </div>
 
-        {/* Response Time Chart */}
-        <ResponseTimeChart responseTimes={stats.responseTimes} />
-
-        {/* Mode Distribution */}
         <ModeChart queriesPerMode={stats.queriesPerMode} />
 
-        {/* Additional Stats */}
-        <div className="bg-card rounded-xl border border-border p-4">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="bg-white/80 dark:bg-slate-900/70 rounded-2xl border border-emerald-200/70 p-3 space-y-2 shadow-sm text-[11px]">
+          <div className="flex items-center gap-2">
             <TrendingUpIcon className="size-4 text-muted-foreground" />
             <h3 className="font-semibold text-sm">{t('chat.stats.performance', 'Performance')}</h3>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-sm text-muted-foreground">{t('chat.stats.slowest', 'Slowest Response')}</span>
-              <span className="font-medium text-sm">{formattedStats.slowestResponse}</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between py-1 border-b border-border">
+              <span className="text-muted-foreground">{t('chat.stats.slowest', 'Slowest Response')}</span>
+              <span className="font-medium text-[11px]">{formattedStats.slowestResponse}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-sm text-muted-foreground">{t('chat.stats.totalResponses', 'Total Responses')}</span>
-              <span className="font-medium text-sm">{stats.totalResponses}</span>
+            <div className="flex items-center justify-between py-1 border-b border-border">
+              <span className="text-muted-foreground">{t('chat.stats.totalResponses', 'Total Responses')}</span>
+              <span className="font-medium text-[11px]">{stats.totalResponses}</span>
             </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">{t('chat.stats.tokensUsed', 'Tokens Used')}</span>
-              <span className="font-medium text-sm">{stats.totalTokensUsed.toLocaleString()}</span>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-muted-foreground">{t('chat.stats.tokensUsed', 'Tokens Used')}</span>
+              <span className="font-medium text-[11px]">{stats.totalTokensUsed.toLocaleString()}</span>
             </div>
           </div>
         </div>

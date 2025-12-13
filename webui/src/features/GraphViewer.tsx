@@ -40,11 +40,16 @@ import "@react-sigma/graph-search/lib/style.css";
 import useLightragGraph from "@/hooks/useLightragGraph";
 
 // --- CẤU HÌNH SIGMA (STYLE) ---
-const createSigmaSettings = (isDarkTheme: boolean): Partial<SigmaSettings> => ({
+const createSigmaSettings = (
+  isDarkTheme: boolean,
+  showNodeLabel: boolean,
+  showEdgeLabel: boolean,
+  hasSelectedNode: boolean
+): Partial<SigmaSettings> => ({
   allowInvalidContainer: true,
   defaultNodeType: "default",
   defaultEdgeType: "curvedNoArrow",
-  renderEdgeLabels: false,
+  renderEdgeLabels: showEdgeLabel,
   edgeProgramClasses: {
     arrow: EdgeArrowProgram,
     curvedArrow: EdgeCurvedArrowProgram,
@@ -56,7 +61,8 @@ const createSigmaSettings = (isDarkTheme: boolean): Partial<SigmaSettings> => ({
     point: NodePointProgram,
   },
   labelGridCellSize: 60,
-  labelRenderedSizeThreshold: 12,
+  // Hiển thị labels dễ hơn khi có node được select hoặc showNodeLabel được bật
+  labelRenderedSizeThreshold: hasSelectedNode || showNodeLabel ? 6 : 12,
   enableEdgeEvents: true,
   zIndex: true,
   labelColor: {
@@ -68,8 +74,39 @@ const createSigmaSettings = (isDarkTheme: boolean): Partial<SigmaSettings> => ({
     attribute: "labelColor",
   },
   edgeLabelSize: 8,
-  labelSize: 12,
+  labelSize: hasSelectedNode ? 14 : 12, // Label lớn hơn khi có node được select
 });
+
+// --- COMPONENT: SETTINGS UPDATER ---
+const SigmaSettingsUpdater = () => {
+  const sigma = useSigma();
+  const selectedNode = useGraphStore.use.selectedNode();
+  const focusedNode = useGraphStore.use.focusedNode();
+  const showNodeLabel = useSettingsStore.use.showNodeLabel();
+  const theme = useSettingsStore.use.theme();
+  const showEdgeLabel = useSettingsStore.use.showEdgeLabel();
+
+  useEffect(() => {
+    if (!sigma) return;
+    
+    try {
+      const isDarkTheme = theme === "dark";
+      const hasSelectedNode = !!(selectedNode || focusedNode);
+      
+      // Update label settings dynamically
+      sigma.setSetting("labelRenderedSizeThreshold", hasSelectedNode || showNodeLabel ? 6 : 12);
+      sigma.setSetting("labelSize", hasSelectedNode ? 14 : 12);
+      sigma.setSetting("renderEdgeLabels", showEdgeLabel);
+      
+      // Refresh to apply new settings
+      sigma.refresh();
+    } catch (error) {
+      console.warn("Failed to update sigma settings:", error);
+    }
+  }, [sigma, selectedNode, focusedNode, showNodeLabel, showEdgeLabel, theme]);
+
+  return null;
+};
 
 // --- COMPONENT: DATA LOADER ---
 const GraphDataLoader = ({ graph }: { graph: any }) => {
@@ -101,31 +138,56 @@ const GraphEvents = () => {
   const registerEvents = useRegisterEvents();
   const sigma = useSigma();
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const enableNodeDrag = useSettingsStore.use.enableNodeDrag();
 
   useEffect(() => {
-    registerEvents({
-      downNode: (e) => {
+    const events: any = {
+      // Handle node click for selection
+      clickNode: (e: any) => {
+        // Chỉ select node nếu không đang drag
+        if (!isDragging) {
+          useGraphStore.getState().setSelectedNode(e.node, true);
+        }
+      },
+      // Handle background click to deselect
+      clickStage: () => {
+        useGraphStore.getState().setSelectedNode(null);
+      },
+    };
+
+    // Chỉ thêm drag events nếu drag được enable
+    if (enableNodeDrag) {
+      events.downNode = (e: any) => {
         setDraggedNode(e.node);
+        setIsDragging(false);
         sigma.getGraph().setNodeAttribute(e.node, "highlighted", true);
         if (!sigma.getCustomBBox()) sigma.setCustomBBox(sigma.getBBox());
-      },
-      mousemovebody: (e) => {
+      };
+      
+      events.mousemovebody = (e: any) => {
         if (!draggedNode) return;
+        setIsDragging(true);
         const pos = sigma.viewportToGraph(e);
         sigma.getGraph().setNodeAttribute(draggedNode, "x", pos.x);
         sigma.getGraph().setNodeAttribute(draggedNode, "y", pos.y);
         e.preventSigmaDefault();
         e.original.preventDefault();
         e.original.stopPropagation();
-      },
-      mouseup: () => {
+      };
+      
+      events.mouseup = () => {
         if (draggedNode) {
           setDraggedNode(null);
           sigma.getGraph().removeNodeAttribute(draggedNode, "highlighted");
+          // Reset dragging state sau một chút để tránh trigger click event
+          setTimeout(() => setIsDragging(false), 50);
         }
-      },
-    });
-  }, [registerEvents, sigma, draggedNode]);
+      };
+    }
+
+    registerEvents(events);
+  }, [registerEvents, sigma, draggedNode, isDragging, enableNodeDrag]);
 
   return null;
 };
@@ -148,13 +210,16 @@ const GraphViewer = () => {
   const showNodeSearchBar = useSettingsStore.use.showNodeSearchBar();
   const enableNodeDrag = useSettingsStore.use.enableNodeDrag();
   const showLegend = useSettingsStore.use.showLegend();
+  const showNodeLabel = useSettingsStore.use.showNodeLabel();
+  const showEdgeLabel = useSettingsStore.use.showEdgeLabel();
   const theme = useSettingsStore.use.theme();
 
   // 3. Memoize Settings
   const memoizedSigmaSettings = useMemo(() => {
     const isDarkTheme = theme === "dark";
-    return createSigmaSettings(isDarkTheme);
-  }, [theme]);
+    const hasSelectedNode = !!(selectedNode || focusedNode);
+    return createSigmaSettings(isDarkTheme, showNodeLabel, showEdgeLabel, hasSelectedNode);
+  }, [theme, showNodeLabel, showEdgeLabel, selectedNode, focusedNode]);
 
   // 4. Handle Theme Switch
   useEffect(() => {
@@ -207,9 +272,10 @@ const GraphViewer = () => {
         style={{ visibility: isThemeSwitching ? "hidden" : "visible" }}
       >
         <GraphDataLoader graph={lightragGraph} />
+        <SigmaSettingsUpdater />
 
         <GraphControl />
-        {enableNodeDrag && <GraphEvents />}
+        <GraphEvents />
         <FocusOnNode node={autoFocusedNode} move={moveToSelectedNode} />
 
         {/* UI Layers */}

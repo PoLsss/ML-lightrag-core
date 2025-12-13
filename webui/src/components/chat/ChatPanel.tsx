@@ -415,6 +415,11 @@ function ChatInput({ onSend, isLoading }: ChatInputProps) {
 export default function ChatPanel() {
   const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrolling = useRef(false);
+  const lastScrollTop = useRef(0);
+  const scrollAnimationFrame = useRef<number | null>(null);
+  
   const messages = useChatStore.use.messages();
   const addMessage = useChatStore.use.addMessage();
   const updateMessage = useChatStore.use.updateMessage();
@@ -431,25 +436,53 @@ export default function ChatPanel() {
   const startNewConversation = useChatStore.use.startNewConversation();
   const querySettings = useSettingsStore.use.querySettings();
 
-  const scrollToBottom = useCallback((smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: smooth ? "smooth" : "auto",
-      block: "end"
+  // Smooth scroll system for streaming
+  const scrollToBottom = useCallback((immediate = false) => {
+    if (scrollAnimationFrame.current) {
+      cancelAnimationFrame(scrollAnimationFrame.current);
+    }
+    
+    scrollAnimationFrame.current = requestAnimationFrame(() => {
+      if (!messagesEndRef.current || !scrollContainerRef.current) return;
+      
+      // Check if user is near the bottom (within 100px)
+      const container = scrollContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      // Only auto-scroll if user is near bottom or it's immediate
+      if (immediate || isNearBottom || !isUserScrolling.current) {
+        messagesEndRef.current.scrollIntoView({
+          behavior: immediate ? "auto" : "smooth",
+          block: "end"
+        });
+      }
     });
   }, []);
-  
-  // Debounced scroll để tránh scroll quá nhiều khi streaming
-  const debouncedScrollToBottom = useDebouncedCallback(() => scrollToBottom(false), 100);
-  
-  useEffect(() => {
-    // Chỉ scroll smooth khi không đang loading (tức là khi user gửi tin nhắn mới)
-    // Khi streaming thì dùng debounced scroll
-    if (!isLoading) {
-      scrollToBottom(true);
-    } else {
-      debouncedScrollToBottom();
+
+  // Handle user scroll detection
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    
+    const container = scrollContainerRef.current;
+    const currentScrollTop = container.scrollTop;
+    
+    // Detect if user is actively scrolling
+    if (Math.abs(currentScrollTop - lastScrollTop.current) > 5) {
+      isUserScrolling.current = true;
+      
+      // Reset user scrolling flag after 1 second of no activity
+      setTimeout(() => {
+        isUserScrolling.current = false;
+      }, 1000);
     }
-  }, [messages, scrollToBottom, debouncedScrollToBottom, isLoading]);
+    
+    lastScrollTop.current = currentScrollTop;
+  }, []);
+  
+  // Auto-scroll on new messages
+  useEffect(() => {
+    scrollToBottom(!isLoading);
+  }, [messages, scrollToBottom, isLoading]);
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard.writeText(text);
@@ -544,6 +577,8 @@ export default function ChatPanel() {
                     isThinking: false,
                   });
                   pendingUpdate = false;
+                  // Smooth auto-scroll during streaming
+                  scrollToBottom();
                 }, 50);
               }
             },
@@ -575,6 +610,8 @@ export default function ChatPanel() {
             content: fullResponse,
             isThinking: false,
           });
+          // Final smooth scroll after streaming ends
+          scrollToBottom();
         } else {
           // Non-streaming
           const response = await queryText({
@@ -626,6 +663,7 @@ export default function ChatPanel() {
       querySettings,
       saveCurrentConversation,
       t,
+      scrollToBottom,
     ]
   );
 
@@ -734,7 +772,7 @@ export default function ChatPanel() {
           </div>
         </div>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" ref={scrollContainerRef} onScroll={handleScroll}>
         <div className="p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center py-20 text-center">

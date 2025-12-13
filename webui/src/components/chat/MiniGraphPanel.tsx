@@ -129,14 +129,16 @@ const MiniGraphPanel = () => {
     miniGraphData.entities.length === 0
   ) {
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/20 border-b border-border text-muted-foreground p-4 text-center select-none">
-        <div className="mb-3 p-4 bg-background/50 rounded-full shadow-sm ring-1 ring-border">
-          <NetworkIcon className="size-8 text-emerald-500/50" />
+      <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-white shadow-inner border-2 border-emerald-200/70 text-muted-foreground p-5 text-center select-none">
+        <div className="mb-3 p-4 bg-emerald-100/70 dark:bg-emerald-900/40 rounded-full shadow-lg border border-emerald-200">
+          <NetworkIcon className="size-8 text-emerald-600" />
         </div>
         <p className="text-sm font-medium">
-          Chọn nút{" "}
-          <span className="font-bold text-emerald-600">Show Graph</span> <br />{" "}
-          trên tin nhắn để xem ngữ cảnh.
+          Chọn nút{' '}
+          <span className="font-bold text-emerald-600 bg-emerald-100/80 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full shadow-sm">
+            Show Graph
+          </span>{' '}
+          <br /> để xem ngữ cảnh đồ thị.
         </p>
       </div>
     );

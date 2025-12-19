@@ -6,26 +6,29 @@ import { useSettingsStore } from "@/stores/settings";
 import { labelColorDarkTheme, labelColorLightTheme } from "@/lib/constants";
 import { NetworkIcon } from "lucide-react";
 
-// Import shader để vẽ đẹp hơn
+// Import shader
 import { NodeBorderProgram } from "@sigma/node-border";
 import "@react-sigma/core/lib/style.css";
 
-const SubGraphLoader = () => {
+// [UPDATE] Nhận prop isExpanded để điều chỉnh layout
+const SubGraphLoader = ({ isExpanded }: { isExpanded: boolean }) => {
   const sigma = useSigma();
   const graphData = useGraphStore.use.miniGraphData();
 
-  // Cấu hình ForceAtlas2: Tự động dàn trang theo vật lý
+  // Cấu hình ForceAtlas2
   const { start, stop, kill } = useWorkerLayoutForceAtlas2({
     settings: {
-      slowDown: 10, // Chậm lại để chuyển động mượt
-      gravity: 0.5, // Lực hút vừa phải
-      scalingRatio: 8, // Tăng khoảng cách giữa các node
+      slowDown: 20, // Giảm slowDown để layout chạy nhanh hơn chút
+      gravity: 0.05, // Giảm trọng lực để đồ thị bung rộng ra
+      // [UPDATE] Tăng mạnh khoảng cách các node để nhãn không đè lên nhau
+      scalingRatio: 40,
+      iterations: 2000, // [TĂNG] Số lần tính toán nhiều hơn
+      barnesHutOptimize: true, // Tối ưu hiệu năng cho đồ thị lớn
     },
   });
 
   useEffect(() => {
     if (!sigma || !graphData) return;
-
     const graph = sigma.getGraph();
     graph.clear();
 
@@ -38,17 +41,14 @@ const SubGraphLoader = () => {
         try {
           if (!graph.hasNode(nodeId)) {
             graph.addNode(nodeId, {
-              label: nodeId,
-              // Random vị trí ban đầu để tạo đà cho ForceAtlas
+              label: nodeId, // Luôn set label
               x: Math.random() * 100,
               y: Math.random() * 100,
-
-              // [FIX 1] Kích thước nhỏ lại để lộ cạnh nối
-              size: 6,
-
-              color: "#10b981", // Xanh Emerald
+              // [UPDATE] Node to hơn hẳn (15-20px)
+              size: isExpanded ? 20 : 12,
+              color: "#10b981",
               borderColor: "#065f46",
-              borderSize: 0.5,
+              borderSize: 1,
             });
           }
         } catch (e) {}
@@ -62,11 +62,11 @@ const SubGraphLoader = () => {
           if (graph.hasNode(rel.src_id) && graph.hasNode(rel.tgt_id)) {
             if (!graph.hasEdge(rel.src_id, rel.tgt_id)) {
               graph.addEdge(rel.src_id, rel.tgt_id, {
-                size: 2,
-                // [FIX 2] Màu xám đậm hơn để nhìn rõ trên nền trắng
-                color: "#64748b", // Slate-500
-                type: "line",
-                label: rel.description,
+                // [UPDATE] Cạnh dày hơn
+                size: isExpanded ? 4 : 2,
+                color: "#94a3b8",
+                type: "arrow", // Dùng mũi tên
+                label: rel.description || rel.relation_type || "liên kết", // Hiện tên quan hệ
               });
             }
           }
@@ -74,93 +74,106 @@ const SubGraphLoader = () => {
       });
     }
 
-    // 3. Kích hoạt thuật toán Force Atlas 2
+    // 3. Chạy thuật toán layout
     if (graph.order > 0) {
-      start(); // Bắt đầu chạy
-
-      // Dừng sau 2.5 giây (khi hình đã ổn định)
+      start();
       const timer = setTimeout(() => {
         stop();
-        // Zoom vừa khít màn hình
+        // Zoom fit thông minh
         const camera = sigma.getCamera();
-        camera.animate({ ratio: 1.1, x: 0.5, y: 0.5 }, { duration: 500 });
-      }, 2500);
+        // Zoom out xa hơn một chút (ratio < 1 là zoom in, ratio > 1 là zoom out trong Sigma camera state,
+        // nhưng hàm animate ratio thường là đích đến relative.
+        // Ta dùng coordinate system để fit.
+        //camera.animatedReset({ duration: 500 });
+        camera.animate({ ratio: 1.5, x: 0.5, y: 0.5 }, { duration: 500 });
+      }, 7000); //2000
 
       return () => {
         kill();
         clearTimeout(timer);
       };
     }
-  }, [graphData, sigma, start, stop, kill]);
+  }, [graphData, sigma, start, stop, kill, isExpanded]);
 
   return null;
 };
 
-const MiniGraphPanel = () => {
+interface MiniGraphPanelProps {
+  isExpanded?: boolean;
+}
+
+const MiniGraphPanel = ({ isExpanded = false }: MiniGraphPanelProps) => {
   const theme = useSettingsStore.use.theme();
   const miniGraphData = useGraphStore.use.miniGraphData();
 
+  // [UPDATE] Settings hiển thị
   const settings = useMemo(
     () => ({
       allowInvalidContainer: true,
       defaultNodeType: "default",
-      defaultEdgeType: "line",
-      renderEdgeLabels: false,
+      defaultEdgeType: "arrow",
 
-      // [FIX 3] Giảm cỡ chữ cho cân đối với node nhỏ
-      labelSize: 11,
+      // [UPDATE] Cấu hình Label
+      renderEdgeLabels: true, // Luôn hiện nhãn cạnh
+      edgeLabelSize: isExpanded ? 12 : 10,
+      edgeLabelColor: { color: theme === "dark" ? "#94a3b8" : "#64748b" },
+
+      labelSize: isExpanded ? 16 : 12, // Chữ node to rõ
       labelColor: {
         color: theme === "dark" ? labelColorDarkTheme : labelColorLightTheme,
       },
+      // Render label ngay cả khi node nhỏ (threshold = 0)
+      labelRenderedSizeThreshold: 0,
+
+      // Tăng mật độ grid để chữ ko bị ẩn khi zoom xa
+      labelGridCellSize: 10,
 
       nodeProgramClasses: {
         default: NodeBorderProgram,
       },
-      enableEdgeHoverEvents: false,
+      enableEdgeHoverEvents: true,
       enableHovering: true,
     }),
-    [theme]
+    [theme, isExpanded]
   );
 
-  // Màn hình chờ
-  if (
-    !miniGraphData ||
-    !miniGraphData.entities ||
-    miniGraphData.entities.length === 0
-  ) {
+  if (!miniGraphData?.entities?.length) {
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-white shadow-inner border-2 border-emerald-200/70 text-muted-foreground p-5 text-center select-none">
-        <div className="mb-3 p-4 bg-emerald-100/70 dark:bg-emerald-900/40 rounded-full shadow-lg border border-emerald-200">
-          <NetworkIcon className="size-8 text-emerald-600" />
+      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 text-muted-foreground p-5 text-center select-none">
+        <div className="mb-3 p-4 bg-emerald-100/50 dark:bg-emerald-900/20 rounded-full">
+          <NetworkIcon className="size-8 text-emerald-600/50" />
         </div>
-        <p className="text-sm font-medium">
-          Chọn nút{' '}
-          <span className="font-bold text-emerald-600 bg-emerald-100/80 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full shadow-sm">
-            Show Graph
-          </span>{' '}
-          <br /> để xem ngữ cảnh đồ thị.
-        </p>
+        <p className="text-sm">Chọn một đoạn chat để xem đồ thị.</p>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full relative border-b border-border bg-card overflow-hidden group">
-      <div className="absolute top-3 left-3 z-10 bg-background/90 px-3 py-1.5 rounded-md text-xs font-semibold backdrop-blur-md border shadow-sm flex items-center gap-2 transition-all group-hover:opacity-100">
-        <span className="text-muted-foreground">Context:</span>
-        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-          {miniGraphData.entities.length} Nodes
-        </span>
+    <div className="h-full w-full relative bg-card overflow-hidden">
+      {/* Info Badge */}
+      <div className="absolute top-3 left-3 z-10 bg-background/90 backdrop-blur px-3 py-1.5 rounded-md border shadow-sm flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-emerald-500"></span>
+          <span className="text-sm font-bold text-foreground">
+            {miniGraphData.entities.length} Nodes
+          </span>
+        </div>
+        <div className="w-px h-3 bg-border"></div>
+        <div className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full bg-slate-400"></span>
+          <span className="text-sm font-bold text-foreground">
+            {miniGraphData.relationships?.length || 0} Edges
+          </span>
+        </div>
       </div>
 
-      {/* Key để reset khi số lượng node thay đổi */}
       <SigmaContainer
-        key={`mini-graph-${miniGraphData.entities.length}`}
+        key={`mini-graph-${miniGraphData.entities.length}-${isExpanded}`}
         style={{ height: "100%", width: "100%" }}
         settings={settings}
         className="!bg-transparent"
       >
-        <SubGraphLoader />
+        <SubGraphLoader isExpanded={isExpanded} />
       </SigmaContainer>
     </div>
   );

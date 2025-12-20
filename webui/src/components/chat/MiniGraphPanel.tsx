@@ -1,29 +1,37 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SigmaContainer, useSigma } from "@react-sigma/core";
 import { useWorkerLayoutForceAtlas2 } from "@react-sigma/layout-forceatlas2";
 import { useGraphStore } from "@/stores/graph";
 import { useSettingsStore } from "@/stores/settings";
 import { labelColorDarkTheme, labelColorLightTheme } from "@/lib/constants";
-import { NetworkIcon } from "lucide-react";
-
-// Import shader
+import { NetworkIcon, LayersIcon } from "lucide-react";
 import { NodeBorderProgram } from "@sigma/node-border";
 import "@react-sigma/core/lib/style.css";
 
-// [UPDATE] Nhận prop isExpanded để điều chỉnh layout
+// --- CẤU HÌNH MÀU SẮC (Giữ xanh theo ý bạn, hoặc đổi tùy thích) ---
+const NODE_COLOR = "#10b981"; // Xanh Emerald
+const EDGE_COLOR = "#94a3b8"; // Xám Slate
+
+// --- LOADER & LAYOUT LOGIC ---
 const SubGraphLoader = ({ isExpanded }: { isExpanded: boolean }) => {
   const sigma = useSigma();
   const graphData = useGraphStore.use.miniGraphData();
 
-  // Cấu hình ForceAtlas2
+  // [CẤU HÌNH "TỶ LỆ VÀNG" ĐỂ GIỐNG HÌNH 1]
   const { start, stop, kill } = useWorkerLayoutForceAtlas2({
     settings: {
-      slowDown: 20, // Giảm slowDown để layout chạy nhanh hơn chút
-      gravity: 0.05, // Giảm trọng lực để đồ thị bung rộng ra
-      // [UPDATE] Tăng mạnh khoảng cách các node để nhãn không đè lên nhau
-      scalingRatio: 40,
-      iterations: 2000, // [TĂNG] Số lần tính toán nhiều hơn
-      barnesHutOptimize: true, // Tối ưu hiệu năng cho đồ thị lớn
+      slowDown: 10,
+
+      // [QUAN TRỌNG 1] Gravity = 1: Tạo lực hút đủ mạnh để tạo thành cụm (Cluster) như Hình 1
+      gravity: 1,
+
+      // [QUAN TRỌNG 2] Scaling Ratio = 10: Tỷ lệ chuẩn, không quá xa, không quá gần
+      scalingRatio: 10,
+
+      // Chống chồng lấn
+      adjustSizes: true,
+      strongGravityMode: false,
+      barnesHutOptimize: true,
     },
   });
 
@@ -32,61 +40,57 @@ const SubGraphLoader = ({ isExpanded }: { isExpanded: boolean }) => {
     const graph = sigma.getGraph();
     graph.clear();
 
-    // 1. Vẽ Nodes
+    // 1. ADD NODES
     if (graphData.entities) {
       graphData.entities.forEach((entity) => {
         const nodeId = entity.entity_name || entity.name;
-        if (!nodeId) return;
+        if (!nodeId || graph.hasNode(nodeId)) return;
 
-        try {
-          if (!graph.hasNode(nodeId)) {
-            graph.addNode(nodeId, {
-              label: nodeId, // Luôn set label
-              x: Math.random() * 100,
-              y: Math.random() * 100,
-              // [UPDATE] Node to hơn hẳn (15-20px)
-              size: isExpanded ? 20 : 12,
-              color: "#10b981",
-              borderColor: "#065f46",
-              borderSize: 1,
-            });
-          }
-        } catch (e) {}
+        graph.addNode(nodeId, {
+          label: nodeId,
+          // Rải node ngẫu nhiên trong phạm vi nhỏ để chúng tự bung ra
+          x: Math.random() * 100,
+          y: Math.random() * 100,
+
+          // Size node vừa phải (10px), không quá to
+          size: entity.importance ? 15 : 8, // Nếu có info độ quan trọng thì to hơn chút
+
+          color: NODE_COLOR,
+          borderColor: "#047857",
+          borderSize: 1,
+        });
       });
     }
 
-    // 2. Vẽ Edges
+    // 2. ADD EDGES
     if (graphData.relationships) {
       graphData.relationships.forEach((rel) => {
-        try {
-          if (graph.hasNode(rel.src_id) && graph.hasNode(rel.tgt_id)) {
-            if (!graph.hasEdge(rel.src_id, rel.tgt_id)) {
-              graph.addEdge(rel.src_id, rel.tgt_id, {
-                // [UPDATE] Cạnh dày hơn
-                size: isExpanded ? 4 : 2,
-                color: "#94a3b8",
-                type: "arrow", // Dùng mũi tên
-                label: rel.description || rel.relation_type || "liên kết", // Hiện tên quan hệ
-              });
-            }
-          }
-        } catch (e) {}
+        if (
+          graph.hasNode(rel.src_id) &&
+          graph.hasNode(rel.tgt_id) &&
+          !graph.hasEdge(rel.src_id, rel.tgt_id)
+        ) {
+          graph.addEdge(rel.src_id, rel.tgt_id, {
+            // Cạnh mảnh (2px) như Hình 1
+            size: 2,
+            color: EDGE_COLOR,
+            type: "line", // Dùng line thay vì arrow to để nhìn thanh thoát
+            label: rel.description,
+          });
+        }
       });
     }
 
-    // 3. Chạy thuật toán layout
+    // 3. RUN LAYOUT
     if (graph.order > 0) {
       start();
       const timer = setTimeout(() => {
         stop();
-        // Zoom fit thông minh
-        const camera = sigma.getCamera();
-        // Zoom out xa hơn một chút (ratio < 1 là zoom in, ratio > 1 là zoom out trong Sigma camera state,
-        // nhưng hàm animate ratio thường là đích đến relative.
-        // Ta dùng coordinate system để fit.
-        //camera.animatedReset({ duration: 500 });
-        camera.animate({ ratio: 1.5, x: 0.5, y: 0.5 }, { duration: 500 });
-      }, 7000); //2000
+        // Zoom fit vừa vặn
+        sigma
+          .getCamera()
+          .animate({ ratio: 1.1, x: 0.5, y: 0.5 }, { duration: 500 });
+      }, 3000);
 
       return () => {
         kill();
@@ -98,43 +102,46 @@ const SubGraphLoader = ({ isExpanded }: { isExpanded: boolean }) => {
   return null;
 };
 
-interface MiniGraphPanelProps {
-  isExpanded?: boolean;
-}
-
-const MiniGraphPanel = ({ isExpanded = false }: MiniGraphPanelProps) => {
+// --- MAIN COMPONENT ---
+const MiniGraphPanel = ({ isExpanded = false }: { isExpanded?: boolean }) => {
   const theme = useSettingsStore.use.theme();
   const miniGraphData = useGraphStore.use.miniGraphData();
 
-  // [UPDATE] Settings hiển thị
   const settings = useMemo(
     () => ({
       allowInvalidContainer: true,
+
+      // Node
       defaultNodeType: "default",
-      defaultEdgeType: "arrow",
+      nodeProgramClasses: { default: NodeBorderProgram },
+      minNodeSize: 4, // Node nhỏ nhất
+      maxNodeSize: 15, // Node lớn nhất (Không để to đùng như cũ)
 
-      // [UPDATE] Cấu hình Label
-      renderEdgeLabels: true, // Luôn hiện nhãn cạnh
-      edgeLabelSize: isExpanded ? 12 : 10,
-      edgeLabelColor: { color: theme === "dark" ? "#94a3b8" : "#64748b" },
+      // Edge
+      defaultEdgeType: "line",
+      minEdgeSize: 1,
+      maxEdgeSize: 3, // Cạnh tối đa 3px
 
-      labelSize: isExpanded ? 16 : 12, // Chữ node to rõ
+      // Label Edge
+      renderEdgeLabels: true,
+      edgeLabelSize: 10,
+      edgeLabelColor: { color: "#64748b" },
+
+      // Label Node
+      renderLabels: true,
+      // [BÍ QUYẾT HÌNH 1] Luôn hiện label để nhìn thấy thông tin (hoặc set rất nhỏ)
+      labelRenderedSizeThreshold: 4,
+      labelSize: 12,
       labelColor: {
         color: theme === "dark" ? labelColorDarkTheme : labelColorLightTheme,
       },
-      // Render label ngay cả khi node nhỏ (threshold = 0)
-      labelRenderedSizeThreshold: 0,
+      labelWeight: "bold",
+      labelGridCellSize: 60,
 
-      // Tăng mật độ grid để chữ ko bị ẩn khi zoom xa
-      labelGridCellSize: 10,
-
-      nodeProgramClasses: {
-        default: NodeBorderProgram,
-      },
+      zIndex: true,
       enableEdgeHoverEvents: true,
-      enableHovering: true,
     }),
-    [theme, isExpanded]
+    [theme]
   );
 
   if (!miniGraphData?.entities?.length) {
@@ -149,21 +156,23 @@ const MiniGraphPanel = ({ isExpanded = false }: MiniGraphPanelProps) => {
   }
 
   return (
-    <div className="h-full w-full relative bg-card overflow-hidden">
-      {/* Info Badge */}
-      <div className="absolute top-3 left-3 z-10 bg-background/90 backdrop-blur px-3 py-1.5 rounded-md border shadow-sm flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-emerald-500"></span>
-          <span className="text-sm font-bold text-foreground">
-            {miniGraphData.entities.length} Nodes
-          </span>
-        </div>
-        <div className="w-px h-3 bg-border"></div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-slate-400"></span>
-          <span className="text-sm font-bold text-foreground">
-            {miniGraphData.relationships?.length || 0} Edges
-          </span>
+    <div className="h-full w-full relative bg-card overflow-hidden group">
+      {/* Badge Info */}
+      <div className="absolute top-3 left-3 z-10 flex gap-2">
+        <div className="bg-background/90 backdrop-blur px-3 py-1.5 rounded-md border shadow-sm flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-emerald-500"></span>
+            <span className="text-xs font-bold text-foreground">
+              {miniGraphData.entities.length} Nodes
+            </span>
+          </div>
+          <div className="w-px h-3 bg-border"></div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-slate-400"></span>
+            <span className="text-xs font-bold text-foreground text-muted-foreground">
+              {miniGraphData.relationships?.length || 0} Edges
+            </span>
+          </div>
         </div>
       </div>
 

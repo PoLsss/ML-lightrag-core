@@ -135,8 +135,8 @@ const useSettingsStoreBase = create<SettingsState>()(
       querySettings: {
         mode: "mix",
         response_type: "Multiple Paragraphs",
-        top_k: 40,
-        chunk_top_k: 20,
+        top_k: 30,
+        chunk_top_k: 15,
         max_entity_tokens: 6000,
         max_relation_tokens: 8000,
         max_total_tokens: 30000,

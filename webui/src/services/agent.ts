@@ -221,7 +221,7 @@ export async function classifyQueryWithLLM(
     }
 
     const baseUrl = import.meta.env.VITE_OPENAI_BASE_URL || 'https://api.openai.com/v1'
-    const model = import.meta.env.VITE_OPENAI_MODEL || 'gpt-3.5-turbo'
+    const model = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',

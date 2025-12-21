@@ -16,7 +16,7 @@ const getApiKey = (): string => {
 
 // Get model from environment or use default
 const getModel = (): string => {
-  return import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
+  return import.meta.env.VITE_OPENAI_MODEL //|| 'gpt-4o-mini'
 }
 
 // Get base URL (can be customized for Azure, local, etc.)

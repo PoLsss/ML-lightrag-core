@@ -268,15 +268,39 @@ const useChatStoreBase = create<ChatState>()(
     {
       name: 'lightrag-chat-storage',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        messages: state.messages.slice(-100), // Keep last 100 messages
-        conversations: state.conversations.slice(0, 50), // Keep last 50 conversations
-        currentConversationId: state.currentConversationId,
-        stats: state.stats,
-        chatMode: state.chatMode,
-        streamEnabled: state.streamEnabled,
-        agentModeEnabled: state.agentModeEnabled
-      })
+      // Only persist a compact representation to avoid exceeding localStorage quota.
+      partialize: (state) => {
+        const serializeMessage = (m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+          responseTime: m.responseTime,
+          mode: m.mode,
+          queryType: m.queryType,
+          isThinking: m.isThinking,
+        })
+
+        const messages = state.messages.slice(-100).map(serializeMessage)
+
+        const conversations = state.conversations.slice(0, 50).map((c) => ({
+          id: c.id,
+          title: c.title,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          messages: (c.messages || []).slice(-50).map(serializeMessage),
+        }))
+
+        return {
+          messages,
+          conversations,
+          currentConversationId: state.currentConversationId,
+          stats: state.stats,
+          chatMode: state.chatMode,
+          streamEnabled: state.streamEnabled,
+          agentModeEnabled: state.agentModeEnabled,
+        }
+      }
     }
   )
 )

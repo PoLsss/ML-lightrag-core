@@ -87,7 +87,7 @@ async def zhipu_complete_if_cache(
 
     # Remove unsupported kwargs
     kwargs = {
-        k: v for k, v in kwargs.items() if k not in ["hashing_kv", "keyword_extraction"]
+        k: v for k, v in kwargs.items() if k not in ["hashing_kv", "keyword_extraction", "token_tracker"]
     }
 
     response = client.chat.completions.create(model=model, messages=messages, **kwargs)
@@ -207,6 +207,7 @@ async def zhipu_embedding(
         texts = [texts]
 
     embeddings = []
+    kwargs.pop("token_tracker", None)
     for text in texts:
         try:
             response = client.embeddings.create(model=model, input=[text], **kwargs)

@@ -2890,6 +2890,7 @@ class PGDocStatusStorage(DocStatusStorage):
         page_size: int = 50,
         sort_field: str = "updated_at",
         sort_direction: str = "desc",
+        tenant_filter: dict | None = None,
     ) -> tuple[list[tuple[str, DocProcessingStatus]], int]:
         """Get documents with pagination support
 
@@ -2999,7 +3000,7 @@ class PGDocStatusStorage(DocStatusStorage):
 
         return documents, total_count
 
-    async def get_all_status_counts(self) -> dict[str, int]:
+    async def get_all_status_counts(self, tenant_filter: dict | None = None) -> dict[str, int]:
         """Get counts of documents in each status for all documents
 
         Returns:

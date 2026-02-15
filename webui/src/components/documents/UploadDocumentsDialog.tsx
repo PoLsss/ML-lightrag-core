@@ -14,21 +14,30 @@ import { toast } from 'sonner'
 import { errorMessage } from '@/lib/utils'
 import { uploadDocument } from '@/api/lightrag'
 import { acceptedFileTypes } from '@/lib/constants'
+import { useAuthStore } from '@/stores/state'
 
-import { UploadIcon, XIcon, FileIcon } from 'lucide-react'
+import { UploadIcon, XIcon, FileIcon, Globe, Lock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface UploadDocumentsDialogProps {
   onSuccess?: () => void
+  onFileUploaded?: (fileInfo: { name: string; scope?: string }) => void
 }
 
-export default function UploadDocumentsDialog({ onSuccess }: UploadDocumentsDialogProps) {
+type DocumentScope = 'public' | 'internal'
+
+export default function UploadDocumentsDialog({ onSuccess, onFileUploaded }: UploadDocumentsDialogProps) {
   const { t } = useTranslation()
+  const { userRole } = useAuthStore()
   const [open, setOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [progresses, setProgresses] = useState<Record<string, number>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [selectedScope, setSelectedScope] = useState<DocumentScope>('internal')
+
+  // Only Admin and Teacher can select scope
+  const canSelectScope = userRole === 'admin' || userRole === 'teacher'
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -56,26 +65,41 @@ export default function UploadDocumentsDialog({ onSuccess }: UploadDocumentsDial
 
     setIsUploading(true)
     setErrors({})
+    const uploadScope = canSelectScope ? selectedScope : undefined
+
+    // Close dialog immediately and notify parent to show optimistic entries
+    setOpen(false)
+    
+    // Notify parent immediately for each file so they appear in table right away
+    files.forEach(file => {
+      onFileUploaded?.({ name: file.name, scope: uploadScope })
+    })
+    
     let successCount = 0
 
+    // Upload files in background
     for (const file of files) {
       try {
         setProgresses(prev => ({ ...prev, [file.name]: 0 }))
 
         const result = await uploadDocument(file, (percent) => {
           setProgresses(prev => ({ ...prev, [file.name]: percent }))
-        })
+        }, uploadScope)
 
         if (result.status === 'duplicated') {
           setErrors(prev => ({ ...prev, [file.name]: t('documentPanel.upload.duplicate') }))
+          toast.error(`${file.name}: ${t('documentPanel.upload.duplicate')}`)
         } else if (result.status !== 'success') {
           setErrors(prev => ({ ...prev, [file.name]: result.message }))
+          toast.error(`${file.name}: ${result.message}`)
         } else {
           successCount++
         }
       } catch (err) {
-        setErrors(prev => ({ ...prev, [file.name]: errorMessage(err) }))
+        const errMsg = errorMessage(err)
+        setErrors(prev => ({ ...prev, [file.name]: errMsg }))
         setProgresses(prev => ({ ...prev, [file.name]: 100 }))
+        toast.error(`${file.name}: ${errMsg}`)
       }
     }
 
@@ -83,14 +107,15 @@ export default function UploadDocumentsDialog({ onSuccess }: UploadDocumentsDial
 
     if (successCount > 0) {
       toast.success(t('documentPanel.upload.success', { count: successCount }))
-      if (successCount === files.length) {
-        setFiles([])
-        setProgresses({})
-        setOpen(false)
-        onSuccess?.()
-      }
+      onSuccess?.()
+      window.dispatchEvent(new CustomEvent('metrics:document-uploaded'))
     }
-  }, [files, t, onSuccess])
+
+    // Reset state
+    setFiles([])
+    setProgresses({})
+    setSelectedScope('internal')
+  }, [files, t, onSuccess, onFileUploaded, canSelectScope, selectedScope])
 
   const handleClose = (isOpen: boolean) => {
     if (!isUploading) {
@@ -99,6 +124,7 @@ export default function UploadDocumentsDialog({ onSuccess }: UploadDocumentsDial
         setFiles([])
         setProgresses({})
         setErrors({})
+        setSelectedScope('internal')
       }
     }
   }
@@ -125,6 +151,45 @@ export default function UploadDocumentsDialog({ onSuccess }: UploadDocumentsDial
             onChange={handleFileChange}
             disabled={isUploading}
           />
+
+          {/* Scope Selection - Only visible for Admin and Teacher */}
+          {canSelectScope && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                {t('documentPanel.upload.scopeLabel', 'Access Scope')}
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={selectedScope === 'internal' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedScope('internal')}
+                  disabled={isUploading}
+                  className="flex items-center gap-2"
+                >
+                  <Lock className="size-4" />
+                  {t('documentPanel.upload.scopeInternal', 'Internal')}
+                </Button>
+                <Button
+                  type="button"
+                  variant={selectedScope === 'public' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedScope('public')}
+                  disabled={isUploading}
+                  className="flex items-center gap-2"
+                >
+                  <Globe className="size-4" />
+                  {t('documentPanel.upload.scopePublic', 'Public')}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {selectedScope === 'public'
+                  ? t('documentPanel.upload.scopePublicHint', 'Document will be visible to all users including students.')
+                  : t('documentPanel.upload.scopeInternalHint', 'Document will only be visible to teachers and admins.')
+                }
+              </p>
+            </div>
+          )}
 
           {files.length > 0 && (
             <div className="space-y-2 max-h-60 overflow-auto">

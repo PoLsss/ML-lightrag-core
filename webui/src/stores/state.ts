@@ -31,10 +31,12 @@ interface AuthState {
   coreVersion: string | null
   apiVersion: string | null
   username: string | null
+  userRole: string | null
+  displayName: string | null
   webuiTitle: string | null
   webuiDescription: string | null
 
-  login: (token: string, isGuest?: boolean, coreVersion?: string | null, apiVersion?: string | null, webuiTitle?: string | null, webuiDescription?: string | null) => void
+  login: (token: string, isGuest?: boolean, coreVersion?: string | null, apiVersion?: string | null, webuiTitle?: string | null, webuiDescription?: string | null, displayName?: string | null) => void
   logout: () => void
   setVersion: (coreVersion: string | null, apiVersion: string | null) => void
   setCustomTitle: (webuiTitle: string | null, webuiDescription: string | null) => void
@@ -151,7 +153,7 @@ const useBackendState = createSelectors(useBackendStateStoreBase)
 
 export { useBackendState }
 
-const parseTokenPayload = (token: string): { sub?: string; role?: string } => {
+const parseTokenPayload = (token: string): { sub?: string; role?: string; display_name?: string } => {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return {}
@@ -167,6 +169,16 @@ const getUsernameFromToken = (token: string): string | null => {
   return payload.sub || null
 }
 
+const getUserRoleFromToken = (token: string): string | null => {
+  const payload = parseTokenPayload(token)
+  return payload.role || null
+}
+
+const getDisplayNameFromToken = (token: string): string | null => {
+  const payload = parseTokenPayload(token)
+  return payload.display_name || null
+}
+
 const isGuestToken = (token: string): boolean => {
   const payload = parseTokenPayload(token)
   return payload.role === 'guest'
@@ -179,6 +191,8 @@ const initAuthState = () => {
   const webuiTitle = localStorage.getItem('LIGHTRAG-WEBUI-TITLE')
   const webuiDescription = localStorage.getItem('LIGHTRAG-WEBUI-DESCRIPTION')
   const username = token ? getUsernameFromToken(token) : null
+  const userRole = token ? getUserRoleFromToken(token) : null
+  const displayName = token ? getDisplayNameFromToken(token) : null
 
   if (!token) {
     return {
@@ -187,6 +201,8 @@ const initAuthState = () => {
       coreVersion: coreVersion,
       apiVersion: apiVersion,
       username: null,
+      userRole: null,
+      displayName: null,
       webuiTitle: webuiTitle,
       webuiDescription: webuiDescription
     }
@@ -198,6 +214,8 @@ const initAuthState = () => {
     coreVersion: coreVersion,
     apiVersion: apiVersion,
     username: username,
+    userRole: userRole,
+    displayName: displayName,
     webuiTitle: webuiTitle,
     webuiDescription: webuiDescription
   }
@@ -212,10 +230,12 @@ export const useAuthStore = create<AuthState>((set) => {
     coreVersion: initialState.coreVersion,
     apiVersion: initialState.apiVersion,
     username: initialState.username,
+    userRole: initialState.userRole,
+    displayName: initialState.displayName,
     webuiTitle: initialState.webuiTitle,
     webuiDescription: initialState.webuiDescription,
 
-    login: (token, isGuest = false, coreVersion = null, apiVersion = null, webuiTitle = null, webuiDescription = null) => {
+    login: (token, isGuest = false, coreVersion = null, apiVersion = null, webuiTitle = null, webuiDescription = null, displayNameParam = null) => {
       localStorage.setItem('LIGHTRAG-API-TOKEN', token)
 
       if (coreVersion) {
@@ -238,18 +258,42 @@ export const useAuthStore = create<AuthState>((set) => {
       }
 
       const username = getUsernameFromToken(token)
+      const userRole = getUserRoleFromToken(token)
+      const displayName = displayNameParam || getDisplayNameFromToken(token)
       set({
         isAuthenticated: true,
         isGuestMode: isGuest,
         username: username,
+        userRole: userRole,
+        displayName: displayName,
         coreVersion: coreVersion,
         apiVersion: apiVersion,
         webuiTitle: webuiTitle,
         webuiDescription: webuiDescription
       })
+
+      // Reload chat data for the newly logged-in user.
+      // The token is already in localStorage so the user-scoped storage
+      // adapter will read from the correct key.
+      // Use dynamic import to avoid any module init-order issues.
+      import('./chat').then(({ useChatStore }) => {
+        try { useChatStore.getState().rehydrateForCurrentUser() } catch { /* store not ready */ }
+      }).catch(() => { /* chat store not available yet */ })
     },
 
     logout: () => {
+      // Clear chat data BEFORE removing the token, so the user-scoped
+      // storage adapter still knows which key to save the cleared state under.
+      try {
+        // Synchronous access — the module is already loaded by this point.
+        // We use a self-executing async to handle the import but also try
+        // a direct window-level reference as a fast-path fallback.
+        const chatMod = (globalThis as any).__lightrag_chat_store
+        if (chatMod) {
+          chatMod.getState().clearAllData()
+        }
+      } catch { /* ignore */ }
+
       localStorage.removeItem('LIGHTRAG-API-TOKEN')
 
       const coreVersion = localStorage.getItem('LIGHTRAG-CORE-VERSION')
@@ -261,6 +305,8 @@ export const useAuthStore = create<AuthState>((set) => {
         isAuthenticated: false,
         isGuestMode: false,
         username: null,
+        userRole: null,
+        displayName: null,
         coreVersion: coreVersion,
         apiVersion: apiVersion,
         webuiTitle: webuiTitle,

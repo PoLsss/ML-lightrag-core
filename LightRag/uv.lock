@@ -915,6 +915,19 @@ wheels = [
 ]
 
 [[package]]
+name = "email-validator"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dnspython" },
+    { name = "idna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f5/22/900cb125c76b7aaa450ce02fd727f452243f2e91a61af068b40adba60ea9/email_validator-2.3.0.tar.gz", hash = "sha256:9fc05c37f2f6cf439ff414f8fc46d917929974a82244c20eb10231ba60c54426", size = 51238, upload-time = "2025-08-26T13:09:06.831Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/15/545e2b6cf2e3be84bc1ed85613edd75b8aea69807a71c26f4ca6a9258e82/email_validator-2.3.0-py3-none-any.whl", hash = "sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4", size = 35604, upload-time = "2025-08-26T13:09:05.858Z" },
+]
+
+[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1898,10 +1911,12 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "configparser" },
+    { name = "email-validator" },
     { name = "future" },
     { name = "google-api-core" },
     { name = "google-genai" },
     { name = "json-repair" },
+    { name = "motor" },
     { name = "nano-vectordb" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -1935,6 +1950,7 @@ api = [
     { name = "httpx" },
     { name = "jiter" },
     { name = "json-repair" },
+    { name = "motor" },
     { name = "nano-vectordb" },
     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -1975,6 +1991,7 @@ offline = [
     { name = "google-api-core" },
     { name = "google-genai" },
     { name = "llama-index" },
+    { name = "motor" },
     { name = "neo4j" },
     { name = "ollama" },
     { name = "openai" },
@@ -2010,6 +2027,7 @@ offline-llm = [
 ]
 offline-storage = [
     { name = "asyncpg" },
+    { name = "motor" },
     { name = "neo4j" },
     { name = "pymilvus" },
     { name = "pymongo" },
@@ -2031,6 +2049,7 @@ requires-dist = [
     { name = "configparser", marker = "extra == 'api'" },
     { name = "datasets", marker = "extra == 'evaluation'", specifier = ">=4.3.0" },
     { name = "distro", marker = "extra == 'api'" },
+    { name = "email-validator", specifier = ">=2.0.0" },
     { name = "fastapi", marker = "extra == 'api'" },
     { name = "future" },
     { name = "future", marker = "extra == 'api'" },
@@ -2046,9 +2065,12 @@ requires-dist = [
     { name = "jiter", marker = "extra == 'api'" },
     { name = "json-repair" },
     { name = "json-repair", marker = "extra == 'api'" },
-    { name = "langfuse", marker = "extra == 'observability'", specifier = ">=3.8.1" },
+    { name = "langfuse", marker = "extra == 'observability'", specifier = ">=3.0.0" },
     { name = "lightrag-hku", extras = ["offline-docs", "offline-llm", "offline-storage"], marker = "extra == 'offline'" },
     { name = "llama-index", marker = "extra == 'offline-llm'", specifier = ">=0.9.0,<1.0.0" },
+    { name = "motor", specifier = ">=3.0.0,<4.0.0" },
+    { name = "motor", marker = "extra == 'api'", specifier = ">=3.0.0,<4.0.0" },
+    { name = "motor", marker = "extra == 'offline-storage'", specifier = ">=3.0.0,<4.0.0" },
     { name = "nano-vectordb" },
     { name = "nano-vectordb", marker = "extra == 'api'" },
     { name = "neo4j", marker = "extra == 'offline-storage'", specifier = ">=5.0.0,<7.0.0" },
@@ -2556,6 +2578,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "motor"
+version = "3.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pymongo" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/93/ae/96b88362d6a84cb372f7977750ac2a8aed7b2053eed260615df08d5c84f4/motor-3.7.1.tar.gz", hash = "sha256:27b4d46625c87928f331a6ca9d7c51c2f518ba0e270939d395bc1ddc89d64526", size = 280997, upload-time = "2025-05-14T18:56:33.653Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/9a/35e053d4f442addf751ed20e0e922476508ee580786546d699b0567c4c67/motor-3.7.1-py3-none-any.whl", hash = "sha256:8a63b9049e38eeeb56b4fdd57c3312a6d1f25d01db717fe7d82222393c410298", size = 74996, upload-time = "2025-05-14T18:56:31.665Z" },
 ]
 
 [[package]]

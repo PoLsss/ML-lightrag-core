@@ -8,7 +8,11 @@ import aiofiles
 import shutil
 import traceback
 import pipmaster as pm
-from datetime import datetime, timezone
+import io
+from datetime import datetime, timezone, timedelta
+
+# UTC+7 timezone for Ho Chi Minh City
+UTC_PLUS_7 = timezone(timedelta(hours=7))
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Literal
 from fastapi import (
@@ -16,38 +20,51 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     File,
+    Form,
     HTTPException,
+    Query,
+    Request,
     UploadFile,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from lightrag import LightRAG
 from lightrag.base import DeletionResult, DocProcessingStatus, DocStatus
 from lightrag.utils import generate_track_id
 from lightrag.api.utils_api import get_combined_auth_dependency
+from lightrag.api.tenant_context import get_optional_tenant_context, TenantContext, DEFAULT_TENANT_ID
+from lightrag.api.db_setup import get_user_by_email
+from lightrag.api.rls import build_document_metadata, build_read_filter
 from ..config import global_args
 
 
-# Function to format datetime to ISO format string with timezone information
+# Function to format datetime to ISO format string with UTC+7 timezone
 def format_datetime(dt: Any) -> Optional[str]:
-    """Format datetime to ISO format string with timezone information
+    """Format datetime to ISO format string with UTC+7 (Ho Chi Minh City) timezone
 
     Args:
         dt: Datetime object, string, or None
 
     Returns:
-        ISO format string with timezone information, or None if input is None
+        ISO format string with UTC+7 timezone information, or None if input is None
     """
     if dt is None:
         return None
     if isinstance(dt, str):
-        return dt
+        # Try to parse ISO format string to datetime for timezone conversion
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            return dt
 
     # Check if datetime object has timezone information
     if isinstance(dt, datetime):
-        # If datetime object has no timezone info (naive datetime), add UTC timezone
+        # If datetime object has no timezone info (naive datetime), assume UTC
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
+        # Convert to UTC+7
+        dt = dt.astimezone(UTC_PLUS_7)
 
     # Return ISO format string with timezone information
     return dt.isoformat()
@@ -425,6 +442,18 @@ class DocStatusResponse(BaseModel):
         default=None, description="Additional metadata about the document"
     )
     file_path: str = Field(description="Path to the document file")
+    scope: Optional[str] = Field(
+        default=None, description="Access scope: 'public' or 'internal'"
+    )
+    uploaded_by: Optional[str] = Field(
+        default=None, description="Email of the user who uploaded the document"
+    )
+    uploaded_by_role: Optional[str] = Field(
+        default=None, description="Role of the uploader ('admin', 'teacher', 'student', 'system')"
+    )
+    uploaded_by_display_name: Optional[str] = Field(
+        default=None, description="Display name of the user who uploaded the document"
+    )
 
     class Config:
         json_schema_extra = {
@@ -440,6 +469,9 @@ class DocStatusResponse(BaseModel):
                 "error": None,
                 "metadata": {"author": "John Doe", "year": 2025},
                 "file_path": "research_paper.pdf",
+                "scope": "public",
+                "uploaded_by": "teacher@example.com",
+                "uploaded_by_role": "teacher",
             }
         }
 
@@ -1492,6 +1524,96 @@ async def pipeline_index_file(rag: LightRAG, file_path: Path, track_id: str = No
         logger.error(traceback.format_exc())
 
 
+async def pipeline_index_file_with_scope(
+    rag: LightRAG, file_path: Path, track_id: str = None, scope: str = "internal",
+    uploaded_by: str = "system", uploaded_by_role: str = "system",
+    minio_object_key: str = "",
+    tenant_id: str = "",
+):
+    """Index a file with track_id and scope for permission system.
+
+    This function extends pipeline_index_file to support the document permission system.
+    After successful indexing, it updates the document with full RLS metadata.
+
+    Args:
+        rag: LightRAG instance
+        file_path: Path to the saved file
+        track_id: Optional tracking ID
+        scope: Access scope - 'public' or 'internal' (default: 'internal')
+        uploaded_by: Email of the user who uploaded the file (default: 'system')
+        uploaded_by_role: Role of the uploader ('admin', 'teacher', 'student', 'system')
+        minio_object_key: MinIO object key if file was stored in MinIO
+        tenant_id: Tenant ID for multi-tenant RLS isolation
+    """
+    # Ensure we always have a tenant_id
+    if not tenant_id:
+        tenant_id = DEFAULT_TENANT_ID
+
+    try:
+        success, returned_track_id = await pipeline_enqueue_file(
+            rag, file_path, track_id
+        )
+        if success:
+            await rag.apipeline_process_enqueue_documents()
+            
+            # After processing, stamp the document with RLS metadata
+            try:
+                doc_data = await rag.doc_status.get_doc_by_file_path(file_path.name)
+                if doc_data:
+                    doc_id = str(doc_data.get("_id", ""))
+
+                    # Build metadata with minio_object_key
+                    existing_metadata = doc_data.get("metadata", {}) or {}
+                    if minio_object_key:
+                        existing_metadata["minio_object_key"] = minio_object_key
+
+                    # ── RLS: Build authorization fields ──
+                    rls_fields = build_document_metadata(
+                        tenant_id=tenant_id,
+                        owner_id=uploaded_by,
+                        owner_role=uploaded_by_role,
+                        visibility=scope,
+                    )
+
+                    # Merge RLS fields into the document
+                    await rag.doc_status.upsert(
+                        {doc_id: {
+                            **doc_data,
+                            **rls_fields,
+                            "metadata": existing_metadata,
+                        }}
+                    )
+                    logger.info(
+                        f"Document {file_path.name} indexed with "
+                        f"tenant_id='{tenant_id}', visibility='{rls_fields['visibility']}', "
+                        f"owner_id='{uploaded_by}' (role: {uploaded_by_role}), "
+                        f"minio_key='{minio_object_key}'"
+                    )
+
+                    # Also create/update doc_acl entry
+                    try:
+                        from lightrag.api.db_setup import create_doc_acl, get_doc_acl
+                        existing_acl = await get_doc_acl(doc_id)
+                        if not existing_acl:
+                            await create_doc_acl(
+                                doc_id=doc_id,
+                                file_path=file_path.name,
+                                access_scope=scope,
+                                created_by=uploaded_by,
+                                tenant_id=tenant_id,
+                                owner_id=uploaded_by,
+                                owner_role=uploaded_by_role,
+                            )
+                    except Exception as acl_error:
+                        logger.warning(f"Failed to create ACL for {file_path.name}: {acl_error}")
+            except Exception as scope_error:
+                logger.warning(f"Failed to set scope for {file_path.name}: {scope_error}")
+
+    except Exception as e:
+        logger.error(f"Error indexing file {file_path.name}: {str(e)}")
+        logger.error(traceback.format_exc())
+
+
 async def pipeline_index_files(
     rag: LightRAG, file_paths: List[Path], track_id: str = None
 ):
@@ -1893,7 +2015,11 @@ def create_document_routes(
         "/upload", response_model=InsertResponse, dependencies=[Depends(combined_auth)]
     )
     async def upload_to_input_dir(
-        background_tasks: BackgroundTasks, file: UploadFile = File(...)
+        background_tasks: BackgroundTasks,
+        request: Request,
+        file: UploadFile = File(...),
+        scope: str = Form(default="internal"),
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
     ):
         """
         Upload a file to the input directory and index it.
@@ -1905,6 +2031,7 @@ def create_document_routes(
         Args:
             background_tasks: FastAPI BackgroundTasks for async processing
             file (UploadFile): The file to be uploaded. It must have an allowed extension.
+            scope (str): Access scope for the document - 'public' or 'internal'. Defaults to 'internal'.
 
         Returns:
             InsertResponse: A response object containing the upload status and a message.
@@ -1914,6 +2041,15 @@ def create_document_routes(
             HTTPException: If the file type is not supported (400) or other errors occur (500).
         """
         try:
+            # Validate scope parameter
+            valid_scopes = ["public", "internal"]
+            if scope not in valid_scopes:
+                scope = "internal"  # Default to internal for invalid values
+
+            # Students must always upload public documents
+            if ctx is not None and ctx.is_student:
+                scope = "public"
+
             # Sanitize filename to prevent Path Traversal attacks
             safe_filename = sanitize_filename(file.filename, doc_manager.input_dir)
 
@@ -1948,12 +2084,44 @@ def create_document_routes(
 
             track_id = generate_track_id("upload")
 
-            # Add to background tasks and get track_id
-            background_tasks.add_task(pipeline_index_file, rag, file_path, track_id)
+            # Determine who uploaded the file and their role
+            uploaded_by = ctx.user_email if ctx else "system"
+            uploaded_by_role = ctx.user_role if ctx else "system"
+
+            # Upload to MinIO for persistent object storage
+            minio_object_key = ""
+            try:
+                from lightrag.api.minio_storage import get_minio_storage
+                minio = get_minio_storage()
+                workspace = global_args.workspace or "default"
+                file_size = file_path.stat().st_size
+                with open(file_path, "rb") as f:
+                    minio_object_key = minio.upload_document(
+                        file_data=f,
+                        filename=safe_filename,
+                        file_size=file_size,
+                        workspace=workspace,
+                        doc_id="",  # Will be updated after indexing
+                        uploaded_by=uploaded_by,
+                        uploaded_by_role=uploaded_by_role,
+                        scope=scope,
+                    )
+                logger.info(f"MinIO: File '{safe_filename}' stored as '{minio_object_key}'")
+            except Exception as minio_err:
+                logger.warning(f"MinIO upload failed for '{safe_filename}' (non-blocking): {minio_err}")
+
+            # ── RLS: Resolve tenant_id from context ──
+            tenant_id = ctx.tenant_id if ctx else DEFAULT_TENANT_ID
+
+            # Add to background tasks — pass full RLS context
+            background_tasks.add_task(
+                pipeline_index_file_with_scope, rag, file_path, track_id, scope,
+                uploaded_by, uploaded_by_role, minio_object_key, tenant_id,
+            )
 
             return InsertResponse(
                 status="success",
-                message=f"File '{safe_filename}' uploaded successfully. Processing will continue in background.",
+                message=f"File '{safe_filename}' uploaded successfully with scope '{scope}'. Processing will continue in background.",
                 track_id=track_id,
             )
 
@@ -2591,6 +2759,8 @@ def create_document_routes(
     async def delete_document(
         delete_request: DeleteDocRequest,
         background_tasks: BackgroundTasks,
+        request: Request,
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
     ) -> DeleteDocByIdResponse:
         """
         Delete documents and all their associated data by their IDs using background processing.
@@ -2618,6 +2788,42 @@ def create_document_routes(
         doc_ids = delete_request.doc_ids
 
         try:
+            # Permission check for students:
+            # Students can only delete documents they uploaded.
+            # Admin/teacher can delete any document.
+            if ctx and ctx.is_student:
+                for doc_id in doc_ids:
+                    # Check doc_status for uploaded_by field
+                    try:
+                        doc_data = await rag.doc_status.get_by_id(doc_id)
+                        if doc_data:
+                            doc_uploaded_by = doc_data.get("uploaded_by", "system")
+                            doc_scope = doc_data.get("scope", "internal")
+                            # Student can only delete their own documents
+                            # They cannot delete documents uploaded by admin/teacher that are public
+                            if doc_uploaded_by != ctx.user_email:
+                                return DeleteDocByIdResponse(
+                                    status="not_allowed",
+                                    message=f"You do not have permission to delete document '{doc_id}'. Only documents you uploaded can be deleted.",
+                                    doc_id=doc_id,
+                                )
+                    except Exception as perm_err:
+                        logger.warning(f"Permission check failed for doc {doc_id}: {perm_err}")
+                        # If we can't determine ownership, also check doc_acl
+                        try:
+                            from lightrag.api.db_setup import get_doc_acl
+                            acl = await get_doc_acl(doc_id)
+                            if acl:
+                                created_by = acl.get("created_by", "system")
+                                if created_by != ctx.user_email:
+                                    return DeleteDocByIdResponse(
+                                        status="not_allowed",
+                                        message=f"You do not have permission to delete document '{doc_id}'.",
+                                        doc_id=doc_id,
+                                    )
+                        except Exception:
+                            pass
+
             from lightrag.kg.shared_storage import get_namespace_data
 
             pipeline_status = await get_namespace_data("pipeline_status")
@@ -2840,6 +3046,8 @@ def create_document_routes(
     )
     async def get_documents_paginated(
         request: DocumentsRequest,
+        http_request: Request,
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
     ) -> PaginatedDocsResponse:
         """
         Get documents with pagination support.
@@ -2847,9 +3055,13 @@ def create_document_routes(
         This endpoint retrieves documents with pagination, filtering, and sorting capabilities.
         It provides better performance for large document collections by loading only the
         requested page of data.
+        
+        For students: Only returns documents with scope='public'.
+        For teachers/admins: Returns all documents.
 
         Args:
             request (DocumentsRequest): The request body containing pagination parameters
+            http_request: HTTP request object for user authentication
 
         Returns:
             PaginatedDocsResponse: A response object containing:
@@ -2861,24 +3073,63 @@ def create_document_routes(
             HTTPException: If an error occurs while retrieving documents (500).
         """
         try:
+            # ── RLS: Build tenant-isolated, role-based query filter ──
+            # All authorization logic is centralized in rls.py.
+            # The filter includes tenant_id — cross-tenant access is impossible.
+            # No post-query filtering needed — MongoDB enforces RLS at query time.
+            if ctx:
+                tenant_filter = ctx.rls_read_filter
+            else:
+                # Unauthenticated or no context — show public docs only
+                tenant_filter = build_read_filter(
+                    tenant_id=DEFAULT_TENANT_ID,
+                    user_role="student",
+                    user_email="",
+                )
+            
             # Get paginated documents and status counts in parallel
+            # Both queries use the same tenant_filter for consistent counts
             docs_task = rag.doc_status.get_docs_paginated(
                 status_filter=request.status_filter,
                 page=request.page,
                 page_size=request.page_size,
                 sort_field=request.sort_field,
                 sort_direction=request.sort_direction,
+                tenant_filter=tenant_filter,
             )
-            status_counts_task = rag.doc_status.get_all_status_counts()
+            status_counts_task = rag.doc_status.get_all_status_counts(
+                tenant_filter=tenant_filter
+            )
 
             # Execute both queries in parallel
             (documents_with_ids, total_count), status_counts = await asyncio.gather(
                 docs_task, status_counts_task
             )
 
-            # Convert documents to response format
+            # Convert documents to response format (no post-fetch filtering needed)
+            # Batch-resolve display names for all unique uploader emails
+            unique_emails = set()
+            for doc_id, doc in documents_with_ids:
+                email = getattr(doc, 'uploaded_by', None)
+                if email and email != 'system':
+                    unique_emails.add(email)
+
+            email_to_display_name = {}
+            for email in unique_emails:
+                try:
+                    user = await get_user_by_email(email)
+                    if user and user.get('display_name'):
+                        email_to_display_name[email] = user['display_name']
+                except Exception:
+                    pass
+
             doc_responses = []
             for doc_id, doc in documents_with_ids:
+                doc_scope = getattr(doc, 'scope', None) or 'internal'
+                doc_uploaded_by = getattr(doc, 'uploaded_by', None) or 'system'
+                doc_uploaded_by_role = getattr(doc, 'uploaded_by_role', None) or 'system'
+                doc_display_name = email_to_display_name.get(doc_uploaded_by, None)
+                    
                 doc_responses.append(
                     DocStatusResponse(
                         id=doc_id,
@@ -2892,11 +3143,15 @@ def create_document_routes(
                         error_msg=doc.error_msg,
                         metadata=doc.metadata,
                         file_path=doc.file_path,
+                        scope=doc_scope,
+                        uploaded_by=doc_uploaded_by,
+                        uploaded_by_role=doc_uploaded_by_role,
+                        uploaded_by_display_name=doc_display_name,
                     )
                 )
 
-            # Calculate pagination info
-            total_pages = (total_count + request.page_size - 1) // request.page_size
+            # Calculate pagination info (total_count is already filtered by tenant)
+            total_pages = (total_count + request.page_size - 1) // request.page_size if total_count > 0 else 1
             has_next = request.page < total_pages
             has_prev = request.page > 1
 
@@ -2925,12 +3180,15 @@ def create_document_routes(
         response_model=StatusCountsResponse,
         dependencies=[Depends(combined_auth)],
     )
-    async def get_document_status_counts() -> StatusCountsResponse:
+    async def get_document_status_counts(
+        http_request: Request,
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
+    ) -> StatusCountsResponse:
         """
         Get counts of documents by status.
 
         This endpoint retrieves the count of documents in each processing status
-        (PENDING, PROCESSING, PROCESSED, FAILED) for all documents in the system.
+        (PENDING, PROCESSING, PROCESSED, FAILED) filtered by the user's tenant context.
 
         Returns:
             StatusCountsResponse: A response object containing status counts
@@ -2939,7 +3197,19 @@ def create_document_routes(
             HTTPException: If an error occurs while retrieving status counts (500).
         """
         try:
-            status_counts = await rag.doc_status.get_all_status_counts()
+            # ── RLS: Same centralized filter as paginated endpoint ──
+            if ctx:
+                tenant_filter = ctx.rls_read_filter
+            else:
+                tenant_filter = build_read_filter(
+                    tenant_id=DEFAULT_TENANT_ID,
+                    user_role="student",
+                    user_email="",
+                )
+            
+            status_counts = await rag.doc_status.get_all_status_counts(
+                tenant_filter=tenant_filter
+            )
             return StatusCountsResponse(status_counts=status_counts)
 
         except Exception as e:
@@ -3051,6 +3321,176 @@ def create_document_routes(
 
         except Exception as e:
             logger.error(f"Error requesting pipeline cancellation: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get(
+        "/file/{doc_id}",
+        summary="Retrieve original document file from MinIO",
+        description="Stream the original uploaded file for a given document ID. "
+                    "The file is served with the correct Content-Type so the browser "
+                    "can render it natively (PDF, images, etc.). "
+                    "Supports auth via Bearer header, X-API-Key header, or query params "
+                    "(token=, api_key=) for iframe/embed usage.",
+    )
+    async def get_document_file(
+        doc_id: str,
+        request: Request,
+        token: Optional[str] = Query(None, description="Auth token for iframe/embed usage"),
+        api_key_param: Optional[str] = Query(None, alias="api_key", description="API key for iframe/embed usage"),
+    ):
+        """
+        Retrieve the original uploaded file from MinIO by document ID.
+
+        Supports authentication via:
+        - Standard Bearer token header
+        - X-API-Key header
+        - Query parameter ?token=... (for iframe/embed usage)
+        - Query parameter ?api_key=... (for iframe/embed usage)
+        """
+        # Manual auth: check headers first, then query params
+        from lightrag.api.auth import auth_handler as _auth_handler
+        auth_ok = False
+
+        # Check Bearer token from header
+        auth_header = request.headers.get("Authorization", "")
+        header_token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
+
+        # Check X-API-Key header  
+        header_api_key = request.headers.get("X-API-Key", "")
+
+        # Use query params as fallback
+        effective_token = header_token or (token or "")
+        effective_api_key = header_api_key or (api_key_param or "")
+
+        # Validate token
+        if effective_token:
+            try:
+                token_info = _auth_handler.validate_token(effective_token)
+                if token_info:
+                    auth_ok = True
+            except Exception:
+                pass
+
+        # Validate API key
+        if not auth_ok and effective_api_key and api_key:
+            if effective_api_key == api_key:
+                auth_ok = True
+
+        # If no auth is configured at all, allow access
+        if not auth_ok:
+            auth_configured_local = bool(_auth_handler.accounts)
+            api_key_configured = bool(api_key)
+            if not auth_configured_local and not api_key_configured:
+                auth_ok = True
+
+        if not auth_ok:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        try:
+            # Look up document in doc_status storage using get_by_id
+            doc_data = await rag.doc_status.get_by_id(doc_id)
+
+            if not doc_data:
+                raise HTTPException(status_code=404, detail=f"Document '{doc_id}' not found")
+
+            # doc_data is a dict from MongoDB
+            metadata = doc_data.get("metadata", {}) or {}
+            minio_object_key = metadata.get("minio_object_key", "")
+            file_path_str = doc_data.get("file_path", "") or ""
+
+            # ── Strategy 1: Serve from MinIO ──
+            if not minio_object_key and file_path_str:
+                # Try to discover the object in MinIO by filename
+                try:
+                    from lightrag.api.minio_storage import get_minio_storage
+                    minio = get_minio_storage()
+                    workspace = global_args.workspace or "default"
+                    found_key = minio.find_document_by_filename(
+                        Path(file_path_str).name, workspace
+                    )
+                    if found_key:
+                        minio_object_key = found_key
+                except Exception as search_err:
+                    logger.debug(f"MinIO search failed for '{file_path_str}': {search_err}")
+
+            if minio_object_key:
+                from lightrag.api.minio_storage import get_minio_storage, get_content_type
+                minio = get_minio_storage()
+
+                try:
+                    response_obj, content_type, content_length = minio.get_document_stream(
+                        minio_object_key
+                    )
+                except Exception as minio_err:
+                    logger.warning(f"MinIO stream failed for '{minio_object_key}': {minio_err}")
+                    # Fall through to local fallback
+                    minio_object_key = ""
+
+            if minio_object_key:
+                # Successfully got MinIO stream — serve it
+                filename = minio_object_key.split("/")[-1] if "/" in minio_object_key else minio_object_key
+
+                def iter_minio_file():
+                    try:
+                        while True:
+                            chunk = response_obj.read(8192)
+                            if not chunk:
+                                break
+                            yield chunk
+                    finally:
+                        response_obj.close()
+                        response_obj.release_conn()
+
+                headers = {
+                    "Content-Disposition": f'inline; filename="{filename}"',
+                    "Access-Control-Expose-Headers": "Content-Disposition",
+                }
+                if content_length > 0:
+                    headers["Content-Length"] = str(content_length)
+
+                return StreamingResponse(
+                    iter_minio_file(),
+                    media_type=content_type,
+                    headers=headers,
+                )
+
+            # ── Strategy 2: Fallback to local filesystem ──
+            if file_path_str:
+                local_file = doc_manager.input_dir / Path(file_path_str).name
+                if local_file.exists() and local_file.is_file():
+                    from lightrag.api.minio_storage import get_content_type as _get_ct
+                    ct = _get_ct(local_file.name)
+                    file_size = local_file.stat().st_size
+
+                    def iter_local_file():
+                        with open(local_file, "rb") as f:
+                            while True:
+                                chunk = f.read(8192)
+                                if not chunk:
+                                    break
+                                yield chunk
+
+                    return StreamingResponse(
+                        iter_local_file(),
+                        media_type=ct,
+                        headers={
+                            "Content-Disposition": f'inline; filename="{local_file.name}"',
+                            "Content-Length": str(file_size),
+                            "Access-Control-Expose-Headers": "Content-Disposition",
+                        },
+                    )
+
+            raise HTTPException(
+                status_code=404,
+                detail=f"File not found for document '{doc_id}'. "
+                       "Neither MinIO storage nor local filesystem has this file."
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error retrieving file for doc '{doc_id}': {str(e)}")
             logger.error(traceback.format_exc())
             raise HTTPException(status_code=500, detail=str(e))
 

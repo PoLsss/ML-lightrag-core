@@ -5,13 +5,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChatStore, ChatMessage, QueryType } from "@/stores/chat";
 import { useSettingsStore } from "@/stores/settings";
-import { useGraphStore } from "@/stores/graph"; // Import Graph Store
+
 import { queryText, queryTextStream } from "@/api/lightrag";
 import {
   classifyQueryWithLLM,
   buildConversationHistory,
 } from "@/services/agent";
 import { sendChatToOpenAI, isOpenAIConfigured } from "@/services/openai";
+import { logChatQuery } from "@/api/dashboard";
 import { cn, errorMessage } from "@/lib/utils";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
@@ -37,7 +38,6 @@ import {
   DatabaseIcon,
   MessageCircleIcon,
   PlusIcon,
-  NetworkIcon,
 } from "lucide-react";
 import {
   Tooltip,
@@ -145,7 +145,7 @@ const MarkdownComponents = {
     ),
   blockquote: ({ children, ...props }: any) => (
     <blockquote
-      className="border-l-4 border-emerald-500 pl-3 my-2 italic text-muted-foreground"
+      className="border-l-4 border-[var(--brand)] pl-3 my-2 italic text-muted-foreground"
       {...props}
     >
       {children}
@@ -154,7 +154,7 @@ const MarkdownComponents = {
   a: ({ children, href, ...props }: any) => (
     <a
       href={href}
-      className="text-emerald-500 hover:underline"
+      className="text-[var(--brand)] hover:underline"
       target="_blank"
       rel="noopener noreferrer"
       {...props}
@@ -164,7 +164,7 @@ const MarkdownComponents = {
   ),
   strong: ({ children, ...props }: any) => (
     <strong
-      className="font-semibold text-emerald-600 dark:text-emerald-400"
+      className="font-semibold text-[var(--brand)]"
       {...props}
     >
       {children}
@@ -193,26 +193,7 @@ const MessageBubble = React.memo(({ message, onCopy }: MessageBubbleProps) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // === [UPDATED] Handle Show Graph ===
-  const handleShowGraph = () => {
-    // 1. Lấy dữ liệu trực tiếp từ Backend (trong context_data)
-    const msgData = message as any;
 
-    if (
-      msgData.context_data &&
-      Array.isArray(msgData.context_data.entities) &&
-      msgData.context_data.entities.length > 0
-    ) {
-      // [NEW] Gửi toàn bộ object graph data vào store
-      useGraphStore.getState().setMiniGraphData(msgData.context_data);
-      toast.success(
-        `Đã hiển thị ${msgData.context_data.entities.length} thực thể.`
-      );
-    } else {
-      // Fallback: Nếu không có dữ liệu (ví dụ chat mode bypass), báo lỗi
-      toast.info("Tin nhắn này không có dữ liệu đồ thị đi kèm.");
-    }
-  };
 
   return (
     <div
@@ -224,7 +205,7 @@ const MessageBubble = React.memo(({ message, onCopy }: MessageBubbleProps) => {
       <div
         className={cn(
           "shrink-0 size-8 rounded-full flex items-center justify-center",
-          isUser ? "bg-emerald-500" : "bg-purple-500"
+          isUser ? "bg-[var(--brand)]" : "bg-purple-500"
         )}
       >
         {isUser ? (
@@ -238,7 +219,7 @@ const MessageBubble = React.memo(({ message, onCopy }: MessageBubbleProps) => {
         className={cn(
           "max-w-[80%] rounded-2xl px-4 py-3 relative",
           isUser
-            ? "bg-emerald-500 text-white rounded-tr-sm"
+            ? "bg-[var(--brand)] text-[var(--brand-foreground)] rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"
         )}
       >
@@ -305,24 +286,11 @@ const MessageBubble = React.memo(({ message, onCopy }: MessageBubbleProps) => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={handleShowGraph}
-                    className="p-1.5 rounded-md bg-muted/80 hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-                  >
-                    <NetworkIcon className="size-3" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Show Context on Graph</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
                     onClick={handleCopy}
                     className="p-1.5 rounded-md bg-muted/80 hover:bg-muted transition-colors"
                   >
                     {copied ? (
-                      <CheckIcon className="size-3 text-emerald-500" />
+                      <CheckIcon className="size-3 text-[var(--brand)]" />
                     ) : (
                       <CopyIcon className="size-3 text-muted-foreground" />
                     )}
@@ -392,7 +360,7 @@ function ChatInput({ onSend, isLoading }: ChatInputProps) {
           "chat.inputPlaceholder",
           "Ask a question about your documents..."
         )}
-        className="w-full min-h-[52px] max-h-[150px] resize-none rounded-xl border-2 border-border bg-background px-4 py-3 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 placeholder:text-muted-foreground shadow-sm transition-all duration-200"
+        className="w-full min-h-[52px] max-h-[150px] resize-none rounded-xl border-2 border-border bg-background px-4 py-3 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/50 focus:border-[var(--brand)]/50 placeholder:text-muted-foreground shadow-sm transition-all duration-200"
         disabled={isLoading}
         rows={1}
       />
@@ -400,7 +368,8 @@ function ChatInput({ onSend, isLoading }: ChatInputProps) {
         onClick={handleSend}
         disabled={!input.trim() || isLoading}
         size="icon"
-        className="absolute right-2 bottom-2 size-9 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 shadow-lg shadow-emerald-500/30 transition-all duration-200"
+        className="absolute right-2 bottom-2 size-9 rounded-xl bg-[linear-gradient(to_right,var(--brand),var(--brand-secondary))] hover:opacity-90 disabled:opacity-50 shadow-lg transition-all duration-200"
+        style={{ boxShadow: '0 10px 15px -3px color-mix(in srgb, var(--brand) 30%, transparent)' }}
       >
         {isLoading ? (
           <Loader2Icon className="size-4 animate-spin text-white" />
@@ -419,7 +388,7 @@ export default function ChatPanel() {
   const isUserScrolling = useRef(false);
   const lastScrollTop = useRef(0);
   const scrollAnimationFrame = useRef<number | null>(null);
-  
+
   const messages = useChatStore.use.messages();
   const addMessage = useChatStore.use.addMessage();
   const updateMessage = useChatStore.use.updateMessage();
@@ -441,14 +410,14 @@ export default function ChatPanel() {
     if (scrollAnimationFrame.current) {
       cancelAnimationFrame(scrollAnimationFrame.current);
     }
-    
+
     scrollAnimationFrame.current = requestAnimationFrame(() => {
       if (!messagesEndRef.current || !scrollContainerRef.current) return;
-      
+
       // Check if user is near the bottom (within 100px)
       const container = scrollContainerRef.current;
       const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      
+
       // Only auto-scroll if user is near bottom or it's immediate
       if (immediate || isNearBottom || !isUserScrolling.current) {
         messagesEndRef.current.scrollIntoView({
@@ -462,23 +431,23 @@ export default function ChatPanel() {
   // Handle user scroll detection
   const handleScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
-    
+
     const container = scrollContainerRef.current;
     const currentScrollTop = container.scrollTop;
-    
+
     // Detect if user is actively scrolling
     if (Math.abs(currentScrollTop - lastScrollTop.current) > 5) {
       isUserScrolling.current = true;
-      
+
       // Reset user scrolling flag after 1 second of no activity
       setTimeout(() => {
         isUserScrolling.current = false;
       }, 1000);
     }
-    
+
     lastScrollTop.current = currentScrollTop;
   }, []);
-  
+
   // Auto-scroll on new messages
   useEffect(() => {
     scrollToBottom(!isLoading);
@@ -537,6 +506,19 @@ export default function ChatPanel() {
                   isThinking: false,
                 });
                 updateStats(responseTime, "bypass", "chat");
+
+                // Log chat query to backend for dashboard metrics
+                logChatQuery({
+                  query_text: content,
+                  response_preview: openaiResponse.content?.slice(0, 200) || "",
+                  execution_time_ms: responseTime,
+                }).catch((err) =>
+                  console.warn("Failed to log chat query:", err)
+                );
+
+                // Emit event for real-time dashboard updates
+                window.dispatchEvent(new CustomEvent("metrics:query-completed"));
+
                 return;
               } catch (error) {
                 console.warn("OpenAI failed, falling back to RAG:", error);
@@ -567,7 +549,7 @@ export default function ChatPanel() {
             },
             (chunk) => {
               fullResponse += chunk;
-              
+
               // Throttle UI updates to reduce jitter - only update every 50ms
               if (!pendingUpdate) {
                 pendingUpdate = true;
@@ -601,7 +583,7 @@ export default function ChatPanel() {
               throw new Error(error);
             }
           );
-          
+
           // Ensure final update after stream completes
           if (streamUpdateTimeout) {
             clearTimeout(streamUpdateTimeout);
@@ -639,6 +621,10 @@ export default function ChatPanel() {
           isThinking: false,
         });
         updateStats(responseTime, effectiveMode, queryType);
+
+        // Emit event for real-time dashboard updates
+        window.dispatchEvent(new CustomEvent("metrics:query-completed"));
+
         setTimeout(() => saveCurrentConversation(), 100);
       } catch (error) {
         const errMsg = errorMessage(error);
@@ -672,7 +658,10 @@ export default function ChatPanel() {
       <div className="shrink-0 px-4 py-3 border-b border-border bg-card">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
+            <div
+              className="size-10 rounded-xl bg-[linear-gradient(to_bottom_right,var(--brand),var(--brand-secondary))] flex items-center justify-center shadow-lg"
+              style={{ boxShadow: '0 10px 15px -3px color-mix(in srgb, var(--brand) 30%, transparent)' }}
+            >
               <SparklesIcon className="size-5 text-white" />
             </div>
             <div>
@@ -683,9 +672,9 @@ export default function ChatPanel() {
                 {agentModeEnabled
                   ? t("chat.agentMode", "Smart mode: Auto-detects query type")
                   : t(
-                      "chat.subtitle",
-                      "Ask questions about your knowledge base"
-                    )}
+                    "chat.subtitle",
+                    "Ask questions about your knowledge base"
+                  )}
               </p>
             </div>
           </div>
@@ -698,7 +687,7 @@ export default function ChatPanel() {
                       className={cn(
                         "size-4 transition-colors",
                         agentModeEnabled
-                          ? "text-emerald-500"
+                          ? "text-[var(--brand)]"
                           : "text-muted-foreground"
                       )}
                     />
@@ -744,7 +733,7 @@ export default function ChatPanel() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-3 gap-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-600 hover:border-emerald-300"
+              className="h-8 px-3 gap-1.5 hover:bg-[var(--brand-hover)] hover:text-[var(--brand)] hover:border-[var(--brand-border)]"
               onClick={startNewConversation}
               disabled={messages.length === 0}
             >
@@ -776,8 +765,8 @@ export default function ChatPanel() {
         <div className="p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="size-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mb-4">
-                <BotIcon className="size-8 text-emerald-500" />
+              <div className="size-16 rounded-2xl bg-[linear-gradient(to_bottom_right,color-mix(in_srgb,var(--brand)_20%,transparent),color-mix(in_srgb,var(--brand-secondary)_20%,transparent))] flex items-center justify-center mb-4">
+                <BotIcon className="size-8 text-[var(--brand)]" />
               </div>
               <h3 className="font-semibold text-lg mb-2">
                 {t("chat.welcome.title", "Welcome to LightRAG Chat")}

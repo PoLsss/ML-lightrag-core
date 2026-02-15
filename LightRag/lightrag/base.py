@@ -168,6 +168,13 @@ class QueryParam:
     containing citation information for the retrieved content.
     """
 
+    accessible_doc_ids: set | None = None
+    """Set of document IDs the current user is allowed to access.
+    When set (non-None), the retrieval pipeline will filter out entities,
+    relations, and chunks that originate from documents not in this set.
+    None means no restriction (admin/teacher can access everything).
+    """
+
 
 @dataclass
 class StorageNameSpace(ABC):
@@ -702,6 +709,12 @@ class DocProcessingStatus:
     """Additional metadata"""
     multimodal_processed: bool | None = field(default=None, repr=False)
     """Internal field: indicates if multimodal processing is complete. Not shown in repr() but accessible for debugging."""
+    scope: str | None = field(default="internal")
+    """Access scope for document permission: 'public' or 'internal'. Defaults to 'internal' for security."""
+    uploaded_by: str | None = field(default=None)
+    """Email of the user who uploaded this document. None or 'system' for system-uploaded documents."""
+    uploaded_by_role: str | None = field(default=None)
+    """Role of the user who uploaded this document ('admin', 'teacher', 'student'). None or 'system' for system uploads."""
 
     def __post_init__(self):
         """
@@ -749,6 +762,7 @@ class DocStatusStorage(BaseKVStorage, ABC):
         page_size: int = 50,
         sort_field: str = "updated_at",
         sort_direction: str = "desc",
+        tenant_filter: dict | None = None,
     ) -> tuple[list[tuple[str, DocProcessingStatus]], int]:
         """Get documents with pagination support
 
@@ -758,14 +772,18 @@ class DocStatusStorage(BaseKVStorage, ABC):
             page_size: Number of documents per page (10-200)
             sort_field: Field to sort by ('created_at', 'updated_at', 'id')
             sort_direction: Sort direction ('asc' or 'desc')
+            tenant_filter: Optional MongoDB-style query filter for multi-tenant isolation
 
         Returns:
             Tuple of (list of (doc_id, DocProcessingStatus) tuples, total_count)
         """
 
     @abstractmethod
-    async def get_all_status_counts(self) -> dict[str, int]:
+    async def get_all_status_counts(self, tenant_filter: dict | None = None) -> dict[str, int]:
         """Get counts of documents in each status for all documents
+
+        Args:
+            tenant_filter: Optional MongoDB-style query filter for multi-tenant isolation
 
         Returns:
             Dictionary mapping status names to counts

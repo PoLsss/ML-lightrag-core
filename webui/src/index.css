@@ -15,44 +15,44 @@
   /* Background colors - Soft warm white */
   --background: hsl(210 40% 98%);
   --foreground: hsl(222 47% 11%);
-  
+
   /* Card - Clean white with subtle warmth */
   --card: hsl(0 0% 100%);
   --card-foreground: hsl(222 47% 11%);
-  
+
   /* Popover */
   --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(222 47% 11%);
-  
+
   /* Primary - Vibrant Emerald Green */
   --primary: hsl(160 84% 39%);
   --primary-foreground: hsl(0 0% 100%);
-  
+
   /* Secondary - Soft blue-gray */
   --secondary: hsl(210 40% 96%);
   --secondary-foreground: hsl(222 47% 11%);
-  
+
   /* Muted - Light gray with blue tint */
   --muted: hsl(210 40% 96%);
   --muted-foreground: hsl(215 16% 47%);
-  
+
   /* Accent - Light teal */
   --accent: hsl(167 76% 95%);
   --accent-foreground: hsl(160 84% 29%);
-  
+
   /* Destructive - Vivid red */
   --destructive: hsl(0 72% 51%);
   --destructive-foreground: hsl(0 0% 100%);
-  
+
   /* Border & Input - Soft gray */
   --border: hsl(214 32% 91%);
   --input: hsl(214 32% 91%);
-  
+
   /* Ring - Emerald focus ring */
   --ring: hsl(160 84% 39%);
-  
+
   --radius: 0.6rem;
-  
+
   /* Custom accent colors for buttons */
   --success: hsl(142 71% 45%);
   --success-foreground: hsl(0 0% 100%);
@@ -60,6 +60,15 @@
   --warning-foreground: hsl(0 0% 100%);
   --info: hsl(199 89% 48%);
   --info-foreground: hsl(0 0% 100%);
+
+  /* Brand colors for sidebar/accents */
+  --brand: hsl(160 84% 39%);
+  --brand-foreground: hsl(0 0% 100%);
+  --brand-secondary: hsl(168 77% 42%);
+  --brand-muted: hsl(160 60% 90%);
+  --brand-hover: hsl(160 60% 95%);
+  --brand-border: hsl(160 50% 80%);
+  --brand-border-dark: hsl(160 40% 30%);
 }
 
 /* ============================================
@@ -68,40 +77,102 @@
 .dark {
   --background: hsl(224 71% 4%);
   --foreground: hsl(213 31% 91%);
-  
+
   --card: hsl(224 71% 4%);
   --card-foreground: hsl(213 31% 91%);
-  
+
   --popover: hsl(224 71% 4%);
   --popover-foreground: hsl(213 31% 91%);
-  
+
   /* Primary - Emerald */
   --primary: hsl(160 84% 39%);
   --primary-foreground: hsl(0 0% 100%);
-  
+
   --secondary: hsl(222 47% 11%);
   --secondary-foreground: hsl(213 31% 91%);
-  
+
   --muted: hsl(223 47% 11%);
   --muted-foreground: hsl(215 16% 57%);
-  
+
   --accent: hsl(216 34% 17%);
   --accent-foreground: hsl(213 31% 91%);
-  
+
   --destructive: hsl(0 63% 31%);
   --destructive-foreground: hsl(0 0% 100%);
-  
+
   --border: hsl(216 34% 17%);
   --input: hsl(216 34% 17%);
-  
+
   --ring: hsl(160 84% 39%);
-  
+
   --success: hsl(142 71% 45%);
   --success-foreground: hsl(0 0% 100%);
   --warning: hsl(38 92% 50%);
   --warning-foreground: hsl(0 0% 100%);
   --info: hsl(199 89% 48%);
   --info-foreground: hsl(0 0% 100%);
+
+  /* Brand colors for sidebar/accents - emerald/teal */
+  --brand: hsl(160 84% 39%);
+  --brand-foreground: hsl(0 0% 100%);
+  --brand-secondary: hsl(168 77% 42%);
+  --brand-muted: hsl(160 40% 12%);
+  --brand-hover: hsl(162 40% 10%);
+  --brand-border: hsl(160 40% 22%);
+  --brand-border-dark: hsl(160 30% 12%);
+}
+
+/* ============================================
+   PINK NEON THEME - Vibrant & Eye-catching
+   ============================================ */
+.pink-neon {
+  --background: hsl(280 30% 6%);
+  --foreground: hsl(330 100% 95%);
+
+  --card: hsl(280 25% 10%);
+  --card-foreground: hsl(330 100% 95%);
+
+  --popover: hsl(280 25% 10%);
+  --popover-foreground: hsl(330 100% 95%);
+
+  /* Primary - Hot Pink */
+  --primary: hsl(330 100% 60%);
+  --primary-foreground: hsl(0 0% 100%);
+
+  --secondary: hsl(280 30% 15%);
+  --secondary-foreground: hsl(330 100% 90%);
+
+  --muted: hsl(280 25% 12%);
+  --muted-foreground: hsl(330 40% 65%);
+
+  /* Accent - Electric Purple */
+  --accent: hsl(280 100% 65%);
+  --accent-foreground: hsl(0 0% 100%);
+
+  --destructive: hsl(0 80% 50%);
+  --destructive-foreground: hsl(0 0% 100%);
+
+  --border: hsl(280 40% 20%);
+  --input: hsl(280 40% 20%);
+
+  /* Ring - Neon Cyan */
+  --ring: hsl(180 100% 50%);
+
+  --success: hsl(150 80% 50%);
+  --success-foreground: hsl(0 0% 100%);
+  --warning: hsl(45 100% 55%);
+  --warning-foreground: hsl(280 30% 6%);
+  --info: hsl(180 100% 50%);
+  --info-foreground: hsl(280 30% 6%);
+
+  /* Brand colors for sidebar/accents - pink/purple neon */
+  --brand: hsl(330 100% 60%);
+  --brand-foreground: hsl(0 0% 100%);
+  --brand-secondary: hsl(280 100% 65%);
+  --brand-muted: hsl(280 30% 12%);
+  --brand-hover: hsl(330 40% 16%);
+  --brand-border: hsl(330 40% 28%);
+  --brand-border-dark: hsl(280 30% 14%);
 }
 
 @theme inline {
@@ -136,6 +207,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -162,5 +234,15 @@
 
   ::-webkit-scrollbar-track {
     background-color: hsl(0 0% 0%);
+  }
+}
+
+.pink-neon {
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(330 100% 60%);
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: hsl(280 30% 6%);
   }
 }

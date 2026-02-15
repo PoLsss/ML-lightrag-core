@@ -66,6 +66,7 @@ async def bedrock_complete_if_cache(
     # Region handling: prefer env, else kwarg (optional)
     region = os.environ.get("AWS_REGION") or kwargs.pop("aws_region", None)
     kwargs.pop("hashing_kv", None)
+    token_tracker = kwargs.pop("token_tracker", None)
     # Capture stream flag (if provided) and remove from kwargs since it's not a Bedrock API parameter
     # We'll use this to determine whether to call converse_stream or converse
     stream = bool(kwargs.pop("stream", False))
@@ -227,6 +228,16 @@ async def bedrock_complete_if_cache(
 
             if not content or content.strip() == "":
                 raise BedrockError("Received empty content from Bedrock API")
+
+            # Track token usage from Bedrock Converse API response
+            if token_tracker and "usage" in response:
+                usage = response["usage"]
+                token_counts = {
+                    "prompt_tokens": usage.get("inputTokens", 0),
+                    "completion_tokens": usage.get("outputTokens", 0),
+                    "total_tokens": usage.get("inputTokens", 0) + usage.get("outputTokens", 0),
+                }
+                token_tracker.add_usage(token_counts)
 
             return content
 

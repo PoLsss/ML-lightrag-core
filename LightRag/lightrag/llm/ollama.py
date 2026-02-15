@@ -53,6 +53,7 @@ async def _ollama_model_if_cache(
         timeout = None
     kwargs.pop("hashing_kv", None)
     api_key = kwargs.pop("api_key", None)
+    token_tracker = kwargs.pop("token_tracker", None)
     headers = {
         "Content-Type": "application/json",
         "User-Agent": f"LightRAG/{__api_version__}",
@@ -74,13 +75,24 @@ async def _ollama_model_if_cache(
             """cannot cache stream response and process reasoning"""
 
             async def inner():
+                nonlocal token_tracker
+                collected_response = None
                 try:
                     async for chunk in response:
+                        collected_response = chunk
                         yield chunk["message"]["content"]
                 except Exception as e:
                     logger.error(f"Error in stream response: {str(e)}")
                     raise
                 finally:
+                    # Track token usage from the last chunk (ollama provides eval_count etc.)
+                    if token_tracker and collected_response:
+                        token_counts = {
+                            "prompt_tokens": collected_response.get("prompt_eval_count", 0),
+                            "completion_tokens": collected_response.get("eval_count", 0),
+                            "total_tokens": collected_response.get("prompt_eval_count", 0) + collected_response.get("eval_count", 0),
+                        }
+                        token_tracker.add_usage(token_counts)
                     try:
                         await ollama_client._client.aclose()
                         logger.debug("Successfully closed Ollama client for streaming")
@@ -90,6 +102,15 @@ async def _ollama_model_if_cache(
             return inner()
         else:
             model_response = response["message"]["content"]
+
+            # Track token usage from ollama response
+            if token_tracker:
+                token_counts = {
+                    "prompt_tokens": response.get("prompt_eval_count", 0),
+                    "completion_tokens": response.get("eval_count", 0),
+                    "total_tokens": response.get("prompt_eval_count", 0) + response.get("eval_count", 0),
+                }
+                token_tracker.add_usage(token_counts)
 
             """
             If the model also wraps its thoughts in a specific tag,

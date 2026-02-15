@@ -68,6 +68,7 @@ async def azure_openai_complete_if_cache(
     kwargs.pop("hashing_kv", None)
     kwargs.pop("keyword_extraction", None)
     timeout = kwargs.pop("timeout", None)
+    token_tracker = kwargs.pop("token_tracker", None)
 
     openai_async_client = AsyncAzureOpenAI(
         azure_endpoint=base_url,
@@ -94,10 +95,13 @@ async def azure_openai_complete_if_cache(
         )
 
     if hasattr(response, "__aiter__"):
-
         async def inner():
+            final_usage = None
             async for chunk in response:
                 if len(chunk.choices) == 0:
+                    # Check for usage in final chunk
+                    if hasattr(chunk, "usage") and chunk.usage:
+                        final_usage = chunk.usage
                     continue
                 content = chunk.choices[0].delta.content
                 if content is None:
@@ -105,12 +109,28 @@ async def azure_openai_complete_if_cache(
                 if r"\u" in content:
                     content = safe_unicode_decode(content.encode("utf-8"))
                 yield content
+            # Track token usage after stream completes
+            if token_tracker and final_usage:
+                token_counts = {
+                    "prompt_tokens": getattr(final_usage, "prompt_tokens", 0),
+                    "completion_tokens": getattr(final_usage, "completion_tokens", 0),
+                    "total_tokens": getattr(final_usage, "total_tokens", 0),
+                }
+                token_tracker.add_usage(token_counts)
 
         return inner()
     else:
         content = response.choices[0].message.content
         if r"\u" in content:
             content = safe_unicode_decode(content.encode("utf-8"))
+        # Track token usage for non-streaming response
+        if token_tracker and hasattr(response, "usage") and response.usage:
+            token_counts = {
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "total_tokens": getattr(response.usage, "total_tokens", 0),
+            }
+            token_tracker.add_usage(token_counts)
         return content
 
 

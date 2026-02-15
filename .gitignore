@@ -42,6 +42,9 @@ webui/dist/
 .env.*.local
 .env.production
 .env.development
+.env.docker
+LightRag/.env
+LightRag/.env.docker
 webui/.env.development
 *.env
 
@@ -90,3 +93,8 @@ htmlcov/
 
 # Ruff
 .ruff_cache/
+
+
+.agent/
+
+minio/data/

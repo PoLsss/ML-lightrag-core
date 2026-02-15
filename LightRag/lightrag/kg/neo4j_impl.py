@@ -1753,6 +1753,186 @@ class Neo4JStorage(BaseGraphStorage):
                 )
                 return labels
 
+    async def add_scope_label(self, node_id: str, scope: str) -> bool:
+        """
+        Add a scope-based label to a node for permission filtering.
+        
+        Args:
+            node_id: The entity_id of the node to update
+            scope: The scope value ("public" or "internal")
+        
+        Returns:
+            bool: True if the label was added successfully, False otherwise
+        """
+        scope_label = "PublicDocument" if scope == "public" else "InternalDocument"
+        workspace_label = self._get_workspace_label()
+        
+        try:
+            async with self._driver.session(database=self._DATABASE) as session:
+                query = f"""
+                MATCH (n:`{workspace_label}` {{entity_id: $entity_id}})
+                SET n:{scope_label}, n.scope = $scope
+                RETURN n.entity_id AS id
+                """
+                result = await session.run(query, entity_id=node_id, scope=scope)
+                record = await result.single()
+                await result.consume()
+                
+                if record:
+                    logger.debug(
+                        f"[{self.workspace}] Added scope label :{scope_label} to node {node_id}"
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        f"[{self.workspace}] Node {node_id} not found when adding scope label"
+                    )
+                    return False
+                    
+        except Exception as e:
+            logger.error(
+                f"[{self.workspace}] Error adding scope label to {node_id}: {str(e)}"
+            )
+            return False
+
+    async def remove_scope_label(self, node_id: str, scope: str) -> bool:
+        """
+        Remove a scope-based label from a node.
+        
+        Args:
+            node_id: The entity_id of the node to update
+            scope: The scope label to remove ("public" or "internal")
+        
+        Returns:
+            bool: True if the label was removed successfully, False otherwise
+        """
+        scope_label = "PublicDocument" if scope == "public" else "InternalDocument"
+        workspace_label = self._get_workspace_label()
+        
+        try:
+            async with self._driver.session(database=self._DATABASE) as session:
+                query = f"""
+                MATCH (n:`{workspace_label}` {{entity_id: $entity_id}})
+                REMOVE n:{scope_label}
+                RETURN n.entity_id AS id
+                """
+                result = await session.run(query, entity_id=node_id)
+                record = await result.single()
+                await result.consume()
+                
+                if record:
+                    logger.debug(
+                        f"[{self.workspace}] Removed scope label :{scope_label} from node {node_id}"
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        f"[{self.workspace}] Node {node_id} not found when removing scope label"
+                    )
+                    return False
+                    
+        except Exception as e:
+            logger.error(
+                f"[{self.workspace}] Error removing scope label from {node_id}: {str(e)}"
+            )
+            return False
+
+    async def update_scope_label(
+        self, node_id: str, old_scope: str, new_scope: str
+    ) -> bool:
+        """
+        Update a node's scope label by swapping the old label for the new one.
+        
+        Args:
+            node_id: The entity_id of the node to update
+            old_scope: The current scope value ("public" or "internal")
+            new_scope: The new scope value ("public" or "internal")
+        
+        Returns:
+            bool: True if the labels were updated successfully, False otherwise
+        """
+        if old_scope == new_scope:
+            return True  # No change needed
+        
+        old_label = "PublicDocument" if old_scope == "public" else "InternalDocument"
+        new_label = "PublicDocument" if new_scope == "public" else "InternalDocument"
+        workspace_label = self._get_workspace_label()
+        
+        try:
+            async with self._driver.session(database=self._DATABASE) as session:
+                query = f"""
+                MATCH (n:`{workspace_label}` {{entity_id: $entity_id}})
+                REMOVE n:{old_label}
+                SET n:{new_label}, n.scope = $new_scope
+                RETURN n.entity_id AS id
+                """
+                result = await session.run(
+                    query, entity_id=node_id, new_scope=new_scope
+                )
+                record = await result.single()
+                await result.consume()
+                
+                if record:
+                    logger.info(
+                        f"[{self.workspace}] Updated scope label for {node_id}: "
+                        f":{old_label} -> :{new_label}"
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        f"[{self.workspace}] Node {node_id} not found when updating scope label"
+                    )
+                    return False
+                    
+        except Exception as e:
+            logger.error(
+                f"[{self.workspace}] Error updating scope label for {node_id}: {str(e)}"
+            )
+            return False
+
+    async def get_nodes_by_scope(
+        self, scope: str, limit: int = 100
+    ) -> list[dict]:
+        """
+        Get nodes filtered by their scope label.
+        
+        Args:
+            scope: The scope to filter by ("public" or "internal")
+            limit: Maximum number of nodes to return
+        
+        Returns:
+            list[dict]: List of node dictionaries matching the scope
+        """
+        scope_label = "PublicDocument" if scope == "public" else "InternalDocument"
+        workspace_label = self._get_workspace_label()
+        
+        try:
+            async with self._driver.session(
+                database=self._DATABASE, default_access_mode="READ"
+            ) as session:
+                query = f"""
+                MATCH (n:`{workspace_label}`:`{scope_label}`)
+                RETURN n
+                LIMIT $limit
+                """
+                result = await session.run(query, limit=limit)
+                nodes = []
+                async for record in result:
+                    node = record["n"]
+                    nodes.append(dict(node))
+                await result.consume()
+                
+                logger.debug(
+                    f"[{self.workspace}] Found {len(nodes)} nodes with scope :{scope_label}"
+                )
+                return nodes
+                
+        except Exception as e:
+            logger.error(
+                f"[{self.workspace}] Error getting nodes by scope {scope}: {str(e)}"
+            )
+            return []
+
     async def drop(self) -> dict[str, str]:
         """Drop all data from current workspace storage and clean up resources
 

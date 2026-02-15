@@ -4,7 +4,7 @@ import { createSelectors } from "@/lib/utils";
 import { defaultQueryLabel } from "@/lib/constants";
 import { Message, QueryRequest } from "@/api/lightrag";
 
-export type Theme = "dark" | "light" | "system";
+export type Theme = "dark" | "light" | "pink-neon";
 export type Language = "en" | "zh" | "fr" | "ar" | "zh_TW";
 export type Tab =
   | "documents"
@@ -12,7 +12,9 @@ export type Tab =
   | "chat"
   | "histories"
   | "retrieval"
-  | "api";
+  | "api"
+  | "dashboard"
+  | "access-control";
 
 interface SettingsState {
   // Document manager settings
@@ -96,9 +98,8 @@ interface SettingsState {
 const useSettingsStoreBase = create<SettingsState>()(
   persist(
     (set) => ({
-      // trigger
       graphRefreshTrigger: 0,
-      theme: "system",
+      theme: "dark",
       language: "en",
       showPropertyPanel: true,
       showNodeSearchBar: true,
@@ -253,7 +254,7 @@ const useSettingsStoreBase = create<SettingsState>()(
     {
       name: "settings-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 18,
+      version: 19,
       migrate: (state: any, version: number) => {
         if (version < 2) {
           state.showEdgeLabel = false;
@@ -349,6 +350,12 @@ const useSettingsStoreBase = create<SettingsState>()(
         if (version < 18) {
           // Add userPromptHistory field for older versions
           state.userPromptHistory = [];
+        }
+        if (version < 19) {
+          // Replace 'system' theme with 'dark'
+          if (state.theme === 'system') {
+            state.theme = 'dark';
+          }
         }
         return state;
       },

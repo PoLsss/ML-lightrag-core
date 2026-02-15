@@ -310,6 +310,12 @@ class MongoDocStatusStorage(DocStatusStorage):
                 data["error_msg"] = data.pop("error")
             else:
                 data.pop("error", None)
+        # Strip any unknown fields that are not part of DocProcessingStatus
+        import dataclasses
+        known_fields = {f.name for f in dataclasses.fields(DocProcessingStatus)}
+        unknown_keys = [k for k in data if k not in known_fields]
+        for k in unknown_keys:
+            data.pop(k)
         return data
 
     def __init__(self, namespace, global_config, embedding_func, workspace=None):
@@ -408,6 +414,10 @@ class MongoDocStatusStorage(DocStatusStorage):
             # Ensure chunks_list field exists and is an array
             if "chunks_list" not in v:
                 v["chunks_list"] = []
+            # Ensure scope field exists with default value for permission system
+            # Default to 'internal' for new documents (most restrictive)
+            if "scope" not in v:
+                v["scope"] = "internal"
             data[k]["_id"] = k
             update_tasks.append(
                 self._data.update_one({"_id": k}, {"$set": v}, upsert=True)
@@ -613,6 +623,7 @@ class MongoDocStatusStorage(DocStatusStorage):
         page_size: int = 50,
         sort_field: str = "updated_at",
         sort_direction: str = "desc",
+        tenant_filter: dict | None = None,
     ) -> tuple[list[tuple[str, DocProcessingStatus]], int]:
         """Get documents with pagination support
 
@@ -644,6 +655,10 @@ class MongoDocStatusStorage(DocStatusStorage):
         query_filter = {}
         if status_filter is not None:
             query_filter["status"] = status_filter.value
+        
+        # Merge tenant filter for multi-tenant isolation
+        if tenant_filter:
+            query_filter.update(tenant_filter)
 
         # Get total count
         total_count = await self._data.count_documents(query_filter)
@@ -693,13 +708,22 @@ class MongoDocStatusStorage(DocStatusStorage):
 
         return documents, total_count
 
-    async def get_all_status_counts(self) -> dict[str, int]:
+    async def get_all_status_counts(self, tenant_filter: dict | None = None) -> dict[str, int]:
         """Get counts of documents in each status for all documents
+
+        Args:
+            tenant_filter: Optional MongoDB-style query filter for multi-tenant isolation
 
         Returns:
             Dictionary mapping status names to counts, including 'all' field
         """
-        pipeline = [{"$group": {"_id": "$status", "count": {"$sum": 1}}}]
+        pipeline = []
+        
+        # Add match stage if tenant filter is provided
+        if tenant_filter:
+            pipeline.append({"$match": tenant_filter})
+        
+        pipeline.append({"$group": {"_id": "$status", "count": {"$sum": 1}}})
         cursor = await self._data.aggregate(pipeline, allowDiskUse=True)
         result = await cursor.to_list()
 

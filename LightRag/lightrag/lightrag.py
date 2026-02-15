@@ -2541,6 +2541,7 @@ class LightRAG:
             model_func=param.model_func,
             user_prompt=param.user_prompt,
             enable_rerank=param.enable_rerank,
+            accessible_doc_ids=param.accessible_doc_ids,
         )
 
         query_result = None
@@ -2640,6 +2641,20 @@ class LightRAG:
 
         global_config = asdict(self)
 
+        # Create a TokenTracker to track token usage for this query
+        from lightrag.utils import TokenTracker
+        from functools import wraps
+        token_tracker = TokenTracker()
+
+        # Wrap the LLM model function to inject token_tracker
+        original_llm_func = global_config.get("llm_model_func")
+        if original_llm_func:
+            @wraps(original_llm_func)
+            async def tracked_llm_func(*args, **kwargs):
+                kwargs['token_tracker'] = token_tracker
+                return await original_llm_func(*args, **kwargs)
+            global_config["llm_model_func"] = tracked_llm_func
+
         try:
             query_result = None
 
@@ -2689,6 +2704,8 @@ class LightRAG:
                             "content": response,
                             "response_iterator": None,
                             "is_streaming": False,
+                            "token_tracker": token_tracker,
+                            "usage": token_tracker.get_usage(),
                         },
                     }
                 else:
@@ -2701,6 +2718,8 @@ class LightRAG:
                             "content": None,
                             "response_iterator": response,
                             "is_streaming": True,
+                            "token_tracker": token_tracker,
+                            "usage": token_tracker.get_usage(),
                         },
                     }
             else:
@@ -2722,6 +2741,8 @@ class LightRAG:
                         "content": PROMPTS["fail_response"],
                         "response_iterator": None,
                         "is_streaming": False,
+                        "token_tracker": token_tracker,
+                        "usage": token_tracker.get_usage(),
                     },
                 }
 
@@ -2735,6 +2756,8 @@ class LightRAG:
                 if query_result.is_streaming
                 else None,
                 "is_streaming": query_result.is_streaming,
+                "token_tracker": token_tracker,
+                "usage": token_tracker.get_usage(),
             }
 
             return raw_data

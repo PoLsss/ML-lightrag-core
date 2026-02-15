@@ -2,10 +2,10 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChatStore, ChatStats } from '@/stores/chat'
 import { cn } from '@/lib/utils'
-import { 
-  MessageSquareIcon, 
-  ZapIcon, 
-  ClockIcon, 
+import {
+  MessageSquareIcon,
+  ZapIcon,
+  ClockIcon,
   TrendingUpIcon,
   ActivityIcon,
   BarChart3Icon,
@@ -78,7 +78,7 @@ interface ModeChartProps {
 
 function ModeChart({ queriesPerMode }: ModeChartProps) {
   const { t } = useTranslation()
-  
+
   const modes = [
     { key: 'naive', label: 'Naive', color: 'bg-gray-500' },
     { key: 'local', label: 'Local', color: 'bg-blue-500' },
@@ -100,7 +100,7 @@ function ModeChart({ queriesPerMode }: ModeChartProps) {
         {modes.map(({ key, label, color }) => {
           const count = queriesPerMode[key] || 0
           const percentage = total > 0 ? (count / total) * 100 : 0
-          
+
           return (
             <div key={key} className="space-y-1">
               <div className="flex items-center justify-between">
@@ -108,7 +108,7 @@ function ModeChart({ queriesPerMode }: ModeChartProps) {
                 <span className="font-medium text-[11px]">{count} ({percentage.toFixed(0)}%)</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div 
+                <div
                   className={cn('h-full rounded-full transition-all', color)}
                   style={{ width: `${percentage}%` }}
                 />
@@ -127,7 +127,7 @@ interface ResponseTimeChartProps {
 
 function ResponseTimeChart({ responseTimes }: ResponseTimeChartProps) {
   const { t } = useTranslation()
-  
+
   const maxTime = Math.max(...responseTimes, 1)
   const displayTimes = responseTimes.slice(-20) // Show last 20
 
@@ -174,14 +174,14 @@ export default function ChatStatsPanel() {
   const resetStats = useChatStore.use.resetStats()
 
   const formattedStats = useMemo(() => ({
-    avgResponseTime: stats.averageResponseTime > 0 
-      ? `${(stats.averageResponseTime / 1000).toFixed(2)}s` 
+    avgResponseTime: stats.averageResponseTime > 0
+      ? `${(stats.averageResponseTime / 1000).toFixed(2)}s`
       : '-',
-    fastestResponse: stats.fastestResponse !== Infinity 
-      ? `${(stats.fastestResponse / 1000).toFixed(2)}s` 
+    fastestResponse: stats.fastestResponse !== Infinity
+      ? `${(stats.fastestResponse / 1000).toFixed(2)}s`
       : '-',
-    slowestResponse: stats.slowestResponse > 0 
-      ? `${(stats.slowestResponse / 1000).toFixed(2)}s` 
+    slowestResponse: stats.slowestResponse > 0
+      ? `${(stats.slowestResponse / 1000).toFixed(2)}s`
       : '-',
     messageCount: messages.length
   }), [stats, messages.length])

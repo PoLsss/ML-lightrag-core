@@ -51,6 +51,7 @@ async def lollms_model_if_cache(
 
     stream = True if kwargs.get("stream") else False
     api_key = kwargs.pop("api_key", None)
+    kwargs.pop("token_tracker", None)
     headers = (
         {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
         if api_key

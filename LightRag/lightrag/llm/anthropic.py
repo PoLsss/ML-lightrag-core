@@ -85,6 +85,7 @@ async def anthropic_complete_if_cache(
     kwargs.pop("hashing_kv", None)
     kwargs.pop("keyword_extraction", None)
     timeout = kwargs.pop("timeout", None)
+    token_tracker = kwargs.pop("token_tracker", None)
 
     anthropic_async_client = (
         AsyncAnthropic(
@@ -131,8 +132,20 @@ async def anthropic_complete_if_cache(
         raise
 
     async def stream_response():
+        input_tokens = 0
+        output_tokens = 0
         try:
             async for event in response:
+                # Track usage from Anthropic events
+                if hasattr(event, "type"):
+                    if event.type == "message_start" and hasattr(event, "message"):
+                        usage = getattr(event.message, "usage", None)
+                        if usage:
+                            input_tokens = getattr(usage, "input_tokens", 0)
+                    elif event.type == "message_delta":
+                        usage = getattr(event, "usage", None)
+                        if usage:
+                            output_tokens = getattr(usage, "output_tokens", 0)
                 content = (
                     event.delta.text
                     if hasattr(event, "delta") and event.delta.text
@@ -146,6 +159,15 @@ async def anthropic_complete_if_cache(
         except Exception as e:
             logger.error(f"Error in stream response: {str(e)}")
             raise
+        finally:
+            # Track token usage after stream completes
+            if token_tracker and (input_tokens or output_tokens):
+                token_counts = {
+                    "prompt_tokens": input_tokens,
+                    "completion_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                }
+                token_tracker.add_usage(token_counts)
 
     return stream_response()
 

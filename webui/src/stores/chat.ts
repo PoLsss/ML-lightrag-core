@@ -1,10 +1,52 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware'
 import { createSelectors } from '@/lib/utils'
 import { Message, QueryMode } from '@/api/lightrag'
 
 export type MessageType = 'user' | 'assistant' | 'system' | 'thinking'
 export type QueryType = 'retrieval' | 'chat' | 'unknown'
+
+// ---------------------------------------------------------------------------
+// User-scoped localStorage adapter.
+// Each user gets their own key: `lightrag-chat-<username>`
+// This guarantees zero data leakage between accounts on the same browser.
+// ---------------------------------------------------------------------------
+const CHAT_STORAGE_PREFIX = 'lightrag-chat-'
+
+function _getCurrentUsername(): string {
+  try {
+    const token = localStorage.getItem('LIGHTRAG-API-TOKEN')
+    if (!token) return '_anonymous'
+    const parts = token.split('.')
+    if (parts.length !== 3) return '_anonymous'
+    const payload = JSON.parse(atob(parts[1]))
+    return payload.sub || '_anonymous'
+  } catch {
+    return '_anonymous'
+  }
+}
+
+function _getUserStorageKey(): string {
+  return CHAT_STORAGE_PREFIX + _getCurrentUsername()
+}
+
+/** Custom storage that redirects reads/writes to a per-user key. */
+const userScopedStorage: StateStorage = {
+  getItem: (name: string): string | null => {
+    // `name` is the static key from persist config — we ignore it and use the
+    // user-scoped key instead.
+    void name
+    return localStorage.getItem(_getUserStorageKey())
+  },
+  setItem: (name: string, value: string): void => {
+    void name
+    localStorage.setItem(_getUserStorageKey(), value)
+  },
+  removeItem: (name: string): void => {
+    void name
+    localStorage.removeItem(_getUserStorageKey())
+  },
+}
 
 export interface ChatMessage extends Message {
   id: string
@@ -78,6 +120,12 @@ interface ChatState {
   // Agent mode - auto detect if question needs RAG
   agentModeEnabled: boolean
   setAgentModeEnabled: (enabled: boolean) => void
+
+  // User isolation helpers
+  /** Called on login – reloads persisted data for the new user from their key. */
+  rehydrateForCurrentUser: () => void
+  /** Called on logout – resets all in-memory state to defaults. */
+  clearAllData: () => void
 }
 
 const initialStats: ChatStats = {
@@ -263,11 +311,70 @@ const useChatStoreBase = create<ChatState>()(
 
       setStreamEnabled: (enabled) => set({ streamEnabled: enabled }),
 
-      setAgentModeEnabled: (enabled) => set({ agentModeEnabled: enabled })
+      setAgentModeEnabled: (enabled) => set({ agentModeEnabled: enabled }),
+
+      // ── User isolation ──────────────────────────────────────────
+      rehydrateForCurrentUser: () => {
+        // Read persisted state from the *current* user's localStorage key.
+        const raw = localStorage.getItem(_getUserStorageKey())
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw)
+            const data = parsed?.state ?? parsed
+            set({
+              messages: data.messages ?? [],
+              conversations: data.conversations ?? [],
+              currentConversationId: data.currentConversationId ?? null,
+              stats: data.stats ?? initialStats,
+              chatMode: data.chatMode ?? 'hybrid',
+              streamEnabled: data.streamEnabled ?? true,
+              agentModeEnabled: data.agentModeEnabled ?? true,
+            })
+          } catch {
+            // Corrupted data – start fresh
+            set({
+              messages: [],
+              conversations: [],
+              currentConversationId: null,
+              stats: initialStats,
+              chatMode: 'hybrid',
+              streamEnabled: true,
+              agentModeEnabled: true,
+            })
+          }
+        } else {
+          // No saved data for this user – blank slate
+          set({
+            messages: [],
+            conversations: [],
+            currentConversationId: null,
+            stats: initialStats,
+            chatMode: 'hybrid',
+            streamEnabled: true,
+            agentModeEnabled: true,
+          })
+        }
+      },
+
+      clearAllData: () => {
+        set({
+          messages: [],
+          conversations: [],
+          currentConversationId: null,
+          currentInput: '',
+          isLoading: false,
+          stats: initialStats,
+          chatMode: 'hybrid',
+          streamEnabled: true,
+          agentModeEnabled: true,
+        })
+      },
     }),
     {
+      // The static name is only used as a fallback by zustand internals.
+      // Our custom `userScopedStorage` ignores it and uses the per-user key.
       name: 'lightrag-chat-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => userScopedStorage),
       // Only persist a compact representation to avoid exceeding localStorage quota.
       partialize: (state) => {
         const serializeMessage = (m: any) => ({
@@ -306,3 +413,8 @@ const useChatStoreBase = create<ChatState>()(
 )
 
 export const useChatStore = createSelectors(useChatStoreBase)
+
+// Expose on globalThis so state.ts logout() can access synchronously
+// without an async import (the token must still be in localStorage when
+// we clear so the user-scoped storage adapter saves under the right key).
+;(globalThis as any).__lightrag_chat_store = useChatStoreBase

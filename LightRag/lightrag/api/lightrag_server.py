@@ -52,6 +52,11 @@ from lightrag.api.routers.document_routes import (
 from lightrag.api.routers.query_routes import create_query_routes
 from lightrag.api.routers.graph_routes import create_graph_routes
 from lightrag.api.routers.ollama_api import OllamaAPI
+from lightrag.api.routers.user_routes import create_user_routes
+from lightrag.api.routers.acl_routes import create_acl_routes
+from lightrag.api.routers.dashboard_routes import create_dashboard_routes
+from lightrag.api.routers.scope_routes import create_scope_routes
+from lightrag.api.db_setup import db_manager, init_database
 
 from lightrag.utils import logger, set_verbose_debug
 from lightrag.kg.shared_storage import (
@@ -353,6 +358,14 @@ def create_app(args):
             await rag.initialize_storages()
             await initialize_pipeline_status()
 
+            # Initialize MongoDB user database
+            try:
+                await init_database()
+                logger.info("MongoDB user database initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize MongoDB user database: {e}")
+                logger.warning("Continuing with environment-based authentication")
+
             # Data migration regardless of storage implementation
             await rag.check_and_migrate_data()
 
@@ -363,6 +376,12 @@ def create_app(args):
         finally:
             # Clean up database connections
             await rag.finalize_storages()
+
+            # Close MongoDB connection
+            try:
+                await db_manager.close()
+            except Exception as e:
+                logger.warning(f"Error closing MongoDB connection: {e}")
 
             if "LIGHTRAG_GUNICORN_MODE" not in os.environ:
                 # Only perform cleanup in Uvicorn single-process mode
@@ -430,6 +449,22 @@ def create_app(args):
         else:
             # For other endpoints, return the default FastAPI validation error
             return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+    # Add HTTPException handler to ensure CORS headers are included
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        # Get the origin from the request
+        origin = request.headers.get("origin", "*")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
 
     def get_cors_origins():
         """Get allowed origins from global_args
@@ -901,6 +936,12 @@ def create_app(args):
     ollama_api = OllamaAPI(rag, top_k=args.top_k, api_key=api_key)
     app.include_router(ollama_api.router, prefix="/api")
 
+    # Add user management, ACL, dashboard, and scope routes
+    app.include_router(create_user_routes())
+    app.include_router(create_acl_routes(rag))
+    app.include_router(create_dashboard_routes())
+    app.include_router(create_scope_routes())
+
     # Custom Swagger UI endpoint for offline support
     @app.get("/docs", include_in_schema=False)
     async def custom_swagger_ui_html():
@@ -927,25 +968,8 @@ def create_app(args):
 
     @app.get("/auth-status")
     async def get_auth_status():
-        """Get authentication status and guest token if auth is not configured"""
-
-        if not auth_handler.accounts:
-            # Authentication not configured, return guest token
-            guest_token = auth_handler.create_token(
-                username="guest", role="guest", metadata={"auth_mode": "disabled"}
-            )
-            return {
-                "auth_configured": False,
-                "access_token": guest_token,
-                "token_type": "bearer",
-                "auth_mode": "disabled",
-                "message": "Authentication is disabled. Using guest access.",
-                "core_version": core_version,
-                "api_version": api_version_display,
-                "webui_title": webui_title,
-                "webui_description": webui_description,
-            }
-
+        """Get authentication status - always require login when using MongoDB auth"""
+        # Always require authentication - users authenticate via /users/login
         return {
             "auth_configured": True,
             "auth_mode": "enabled",
@@ -957,38 +981,13 @@ def create_app(args):
 
     @app.post("/login")
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-        if not auth_handler.accounts:
-            # Authentication not configured, return guest token
-            guest_token = auth_handler.create_token(
-                username="guest", role="guest", metadata={"auth_mode": "disabled"}
-            )
-            return {
-                "access_token": guest_token,
-                "token_type": "bearer",
-                "auth_mode": "disabled",
-                "message": "Authentication is disabled. Using guest access.",
-                "core_version": core_version,
-                "api_version": api_version_display,
-                "webui_title": webui_title,
-                "webui_description": webui_description,
-            }
-        username = form_data.username
-        if auth_handler.accounts.get(username) != form_data.password:
-            raise HTTPException(status_code=401, detail="Incorrect credentials")
-
-        # Regular user login
-        user_token = auth_handler.create_token(
-            username=username, role="user", metadata={"auth_mode": "enabled"}
+        """Legacy login endpoint - redirects to /users/login for MongoDB-based auth"""
+        # Use MongoDB-based authentication via /users/login endpoint
+        raise HTTPException(
+            status_code=308,
+            detail="Please use /users/login endpoint for authentication",
+            headers={"Location": "/users/login"}
         )
-        return {
-            "access_token": user_token,
-            "token_type": "bearer",
-            "auth_mode": "enabled",
-            "core_version": core_version,
-            "api_version": api_version_display,
-            "webui_title": webui_title,
-            "webui_description": webui_description,
-        }
 
     @app.get("/health", dependencies=[Depends(combined_auth)])
     async def get_status():

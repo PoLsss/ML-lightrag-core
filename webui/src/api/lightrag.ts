@@ -200,6 +200,10 @@ export type DocStatusResponse = {
   error_msg?: string;
   metadata?: Record<string, any>;
   file_path: string;
+  scope?: 'public' | 'internal';
+  uploaded_by?: string;
+  uploaded_by_role?: string;
+  uploaded_by_display_name?: string;
 };
 
 export type DocsStatusesResponse = {
@@ -314,8 +318,7 @@ axiosInstance.interceptors.response.use(
         return Promise.reject(new Error("Authentication required"));
       }
       throw new Error(
-        `${error.response.status} ${
-          error.response.statusText
+        `${error.response.status} ${error.response.statusText
         }\n${JSON.stringify(error.response.data)}\n${error.config?.url}`
       );
     }
@@ -472,7 +475,7 @@ export const queryTextStream = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    
+
     // Batching variables for smoother streaming
     let chunkBuffer = "";
     let chunkCount = 0;
@@ -501,7 +504,7 @@ export const queryTextStream = async (
             if (parsed.response) {
               chunkBuffer += parsed.response;
               chunkCount++;
-              
+
               // Send batch when we have enough chunks or at significant intervals
               if (chunkCount >= CHUNK_BATCH_SIZE) {
                 onChunk(chunkBuffer);
@@ -571,10 +574,14 @@ export const insertTexts = async (
 
 export const uploadDocument = async (
   file: File,
-  onUploadProgress?: (percentCompleted: number) => void
+  onUploadProgress?: (percentCompleted: number) => void,
+  scope?: 'public' | 'internal'
 ): Promise<DocActionResponse> => {
   const formData = new FormData();
   formData.append("file", file);
+  if (scope) {
+    formData.append("scope", scope);
+  }
 
   const response = await axiosInstance.post("/documents/upload", formData, {
     headers: {
@@ -583,11 +590,11 @@ export const uploadDocument = async (
     onUploadProgress:
       onUploadProgress !== undefined
         ? (progressEvent) => {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total!
-            );
-            onUploadProgress(percentCompleted);
-          }
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total!
+          );
+          onUploadProgress(percentCompleted);
+        }
         : undefined,
   });
   return response.data;
@@ -766,6 +773,40 @@ export const getDocumentsPaginated = async (
 ): Promise<PaginatedDocsResponse> => {
   const response = await axiosInstance.post("/documents/paginated", request);
   return response.data;
+};
+
+/**
+ * Get the URL for streaming the original document file from MinIO.
+ * This URL can be used directly in an iframe/embed or as a download link.
+ */
+export const getDocumentFileUrl = (docId: string): string => {
+  const token = localStorage.getItem("LIGHTRAG-API-TOKEN");
+  const apiKey = useSettingsStore.getState().apiKey;
+  let url = `${backendBaseUrl}/documents/file/${encodeURIComponent(docId)}`;
+  const params: string[] = [];
+  if (token) params.push(`token=${encodeURIComponent(token)}`);
+  if (apiKey) params.push(`api_key=${encodeURIComponent(apiKey)}`);
+  if (params.length > 0) url += `?${params.join("&")}`;
+  return url;
+};
+
+/**
+ * Fetch the original document file as a Blob from MinIO via the backend.
+ */
+export const getDocumentFileBlob = async (
+  docId: string
+): Promise<{ blob: Blob; contentType: string; filename: string }> => {
+  const response = await axiosInstance.get(
+    `/documents/file/${encodeURIComponent(docId)}`,
+    { responseType: "blob" }
+  );
+  const contentType =
+    response.headers["content-type"] || "application/octet-stream";
+  const disposition = response.headers["content-disposition"] || "";
+  let filename = "document";
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  if (match) filename = match[1];
+  return { blob: response.data, contentType, filename };
 };
 
 export const getDocumentStatusCounts =

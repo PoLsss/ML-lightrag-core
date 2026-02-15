@@ -4,3 +4,6 @@ lightrag-hku
 nest-asyncio
 python-docx
 fastapi
+pydantic[email]
+bcrypt
+minio

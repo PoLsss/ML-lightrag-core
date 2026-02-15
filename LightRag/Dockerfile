@@ -33,7 +33,8 @@ RUN apt-get update \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
-
+# COPY requirements.txt .
+# RUN pip install -r requirements.txt
 # Ensure shared data directory exists for uv caches
 RUN mkdir -p /root/.local/share/uv
 
@@ -67,6 +68,11 @@ RUN mkdir -p /app/data/tiktoken \
 FROM python:3.12-slim
 
 WORKDIR /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install uv for package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

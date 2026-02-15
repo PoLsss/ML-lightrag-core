@@ -36,7 +36,7 @@ export default function AppSettings({ className }: AppSettingsProps) {
 
   const handleThemeChange = useCallback(
     (value: string) => {
-      setTheme(value as 'light' | 'dark' | 'system')
+      setTheme(value as 'light' | 'dark' | 'pink-neon')
     },
     [setTheme]
   )
@@ -72,7 +72,7 @@ export default function AppSettings({ className }: AppSettingsProps) {
               <SelectContent>
                 <SelectItem value="light">{t('settings.light')}</SelectItem>
                 <SelectItem value="dark">{t('settings.dark')}</SelectItem>
-                <SelectItem value="system">{t('settings.system')}</SelectItem>
+                <SelectItem value="pink-neon">{t('settings.pinkNeon')}</SelectItem>
               </SelectContent>
             </Select>
           </div>

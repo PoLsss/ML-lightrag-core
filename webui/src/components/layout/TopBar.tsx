@@ -3,9 +3,9 @@ import { SiteInfo } from '@/lib/constants'
 import AppSettings from '@/components/AppSettings'
 import { useAuthStore } from '@/stores/state'
 import { useTranslation } from 'react-i18next'
-import { GithubIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react'
+import { GithubIcon, PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
-import { navigationService } from '@/services/navigation'
+import UserProfileMenu from '@/components/layout/UserProfileMenu'
 
 interface TopBarProps {
   sidebarCollapsed: boolean
@@ -14,11 +14,7 @@ interface TopBarProps {
 
 export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProps) {
   const { t } = useTranslation()
-  const { isGuestMode, webuiTitle, webuiDescription } = useAuthStore()
-
-  const handleLogout = () => {
-    navigationService.navigateToLogin()
-  }
+  const { isGuestMode, webuiTitle, webuiDescription, isAuthenticated } = useAuthStore()
 
   return (
     <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -69,11 +65,7 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
 
         <AppSettings />
 
-        {!isGuestMode && (
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
-            <LogOutIcon className="size-4" />
-          </Button>
-        )}
+        {isAuthenticated && <UserProfileMenu />}
       </div>
     </header>
   )

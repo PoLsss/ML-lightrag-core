@@ -17,6 +17,7 @@ from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from starlette.status import HTTP_403_FORBIDDEN
 from .auth import auth_handler
 from .config import ollama_server_infos, global_args, get_env_value
+from .tenant_context import TenantContext, get_optional_tenant_context
 
 
 def check_env_file():
@@ -53,7 +54,8 @@ for path in whitelist_paths:
             whitelist_patterns.append((path, False))  # (exact_path, is_prefix_match)
 
 # Global authentication configuration
-auth_configured = bool(auth_handler.accounts)
+# Always require authentication since we use MongoDB-based auth via /users/login
+auth_configured = True
 
 
 def get_combined_auth_dependency(api_key: Optional[str] = None):
@@ -91,14 +93,21 @@ def get_combined_auth_dependency(api_key: Optional[str] = None):
         api_key_header_value: Optional[str] = None
         if api_key_header is None
         else Security(api_key_header),
-    ):
+    ) -> Optional[TenantContext]:
+        """
+        Combined authentication dependency.
+        
+        Returns a TenantContext when a valid JWT is present, or None for
+        API-key / whitelist access. This ensures user identity is always
+        available in downstream route handlers when JWT auth is used.
+        """
         # 1. Check if path is in whitelist
         path = request.url.path
         for pattern, is_prefix in whitelist_patterns:
             if (is_prefix and path.startswith(pattern)) or (
                 not is_prefix and path == pattern
             ):
-                return  # Whitelist path, allow access
+                return await get_optional_tenant_context(request)
 
         # 2. Validate token first if provided in the request (Ensure 401 error if token is invalid)
         if token:
@@ -106,10 +115,10 @@ def get_combined_auth_dependency(api_key: Optional[str] = None):
                 token_info = auth_handler.validate_token(token)
                 # Accept guest token if no auth is configured
                 if not auth_configured and token_info.get("role") == "guest":
-                    return
-                # Accept non-guest token if auth is configured
+                    return await get_optional_tenant_context(request)
+                # Accept non-guest token if auth is configured — return TenantContext
                 if auth_configured and token_info.get("role") != "guest":
-                    return
+                    return await get_optional_tenant_context(request)
 
                 # Token validation failed, immediately return 401 error
                 raise HTTPException(
@@ -122,9 +131,9 @@ def get_combined_auth_dependency(api_key: Optional[str] = None):
                     raise
                 # For other exceptions, continue processing
 
-        # 3. Acept all request if no API protection needed
+        # 3. Accept all request if no API protection needed
         if not auth_configured and not api_key_configured:
-            return
+            return None
 
         # 4. Validate API key if provided and API-Key authentication is configured
         if (
@@ -132,7 +141,7 @@ def get_combined_auth_dependency(api_key: Optional[str] = None):
             and api_key_header_value
             and api_key_header_value == api_key
         ):
-            return  # API key validation successful
+            return None  # API key auth — no user context available
 
         ### Authentication failed ####
 

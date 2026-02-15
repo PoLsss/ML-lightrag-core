@@ -4,7 +4,7 @@
     "theme": "Giao diện",
     "light": "Sáng",
     "dark": "Tối",
-    "system": "Hệ thống"
+    "pinkNeon": "Hồng Neon"
   },
   "header": {
     "documents": "Tài liệu",
@@ -69,7 +69,19 @@
     "errorEmptyFields": "Vui lòng nhập tên đăng nhập và mật khẩu",
     "errorInvalidCredentials": "Đăng nhập thất bại, vui lòng kiểm tra lại tên đăng nhập và mật khẩu",
     "authDisabled": "Xác thực đã bị vô hiệu hóa. Sử dụng chế độ đăng nhập tự do.",
-    "guestMode": "Đăng nhập tự do"
+    "guestMode": "Đăng nhập tự do",
+    "register": "Đăng ký",
+    "email": "Email",
+    "emailPlaceholder": "Nhập email của bạn",
+    "confirmPassword": "Xác nhận mật khẩu",
+    "confirmPasswordPlaceholder": "Xác nhận mật khẩu",
+    "registerButton": "Tạo tài khoản",
+    "registering": "Đang tạo tài khoản...",
+    "registerSuccess": "Tạo tài khoản thành công! Vui lòng đăng nhập.",
+    "registerError": "Đăng ký thất bại",
+    "passwordMismatch": "Mật khẩu không khớp",
+    "haveAccount": "Đã có tài khoản?",
+    "noAccount": "Chưa có tài khoản?"
   },
   "common": {
     "cancel": "Hủy",

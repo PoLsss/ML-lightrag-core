@@ -11,25 +11,27 @@ import GraphViewer from '@/features/GraphViewer'
 import DocumentManager from '@/features/DocumentManager'
 import ChatView from '@/features/ChatView'
 import HistoriesView from '@/features/HistoriesView'
+import Dashboard from '@/features/Dashboard'
+import AccessControl from '@/features/AccessControl'
 import { cn } from '@/lib/utils' // Giả sử bạn có hàm cn để merge class (thường có trong shadcn)
 
 // Component wrapper để giữ trạng thái (không unmount khi đổi tab)
-const KeepAliveTabContent = ({ 
-  value, 
-  currentTab, 
-  children, 
-  className 
-}: { 
-  value: string; 
-  currentTab: string; 
-  children: React.ReactNode; 
-  className?: string 
+const KeepAliveTabContent = ({
+  value,
+  currentTab,
+  children,
+  className
+}: {
+  value: string;
+  currentTab: string;
+  children: React.ReactNode;
+  className?: string
 }) => {
   // Nếu tab này đang active thì hiện, không thì ẩn (nhưng vẫn nằm trong DOM)
   const isActive = value === currentTab;
-  
+
   return (
-    <div 
+    <div
       role="tabpanel"
       className={cn(
         "absolute inset-0 overflow-hidden bg-background", // Base styles
@@ -98,14 +100,14 @@ function App() {
         <Sidebar collapsed={sidebarCollapsed} />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          <TopBar 
-            sidebarCollapsed={sidebarCollapsed} 
-            onToggleSidebar={toggleSidebar} 
+          <TopBar
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={toggleSidebar}
           />
 
           <main className="flex-1 relative overflow-hidden bg-muted/30">
             {/* SỬA LỖI 1: Thay TabsContent bằng cơ chế ẩn/hiện thủ công */}
-            
+
             {/* Document Manager: Có thể unmount cũng được, nhưng giữ lại thì tốt hơn */}
             <KeepAliveTabContent value="documents" currentTab={currentTab} className="p-4 overflow-auto">
               <DocumentManager />
@@ -124,6 +126,16 @@ function App() {
             {/* Histories: Có thể unmount nếu muốn tiết kiệm mem */}
             <KeepAliveTabContent value="histories" currentTab={currentTab}>
               <HistoriesView />
+            </KeepAliveTabContent>
+
+            {/* Dashboard: Statistics and logs */}
+            <KeepAliveTabContent value="dashboard" currentTab={currentTab}>
+              <Dashboard />
+            </KeepAliveTabContent>
+
+            {/* Access Control: User management */}
+            <KeepAliveTabContent value="access-control" currentTab={currentTab}>
+              <AccessControl />
             </KeepAliveTabContent>
 
           </main>

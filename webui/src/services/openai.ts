@@ -11,7 +11,7 @@ const getApiKey = (): string => {
   if (storedKey) return storedKey
   
   // Fall back to environment variable
-  return import.meta.env.VITE_OPENAI_API_KEY || ''
+  return import.meta.env.VITE_OPENAI_API_KEY //|| ''
 }
 
 // Get model from environment or use default

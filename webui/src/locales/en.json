@@ -4,13 +4,15 @@
     "theme": "Theme",
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "pinkNeon": "Pink Neon"
   },
   "header": {
     "documents": "Documents",
     "knowledgeGraph": "Knowledge Graph",
     "chat": "Chat",
     "histories": "Histories",
+    "dashboard": "Dashboard",
+    "accessControl": "User Management",
     "projectRepository": "Project Repository",
     "logout": "Logout",
     "frontendNeedsRebuild": "Frontend needs rebuild"
@@ -71,7 +73,19 @@
     "errorEmptyFields": "Please enter your username and password",
     "errorInvalidCredentials": "Login failed, please check username and password",
     "authDisabled": "Authentication is disabled. Using login free mode.",
-    "guestMode": "Login Free"
+    "guestMode": "Login Free",
+    "register": "Register",
+    "email": "Email",
+    "emailPlaceholder": "Enter your email",
+    "confirmPassword": "Confirm Password",
+    "confirmPasswordPlaceholder": "Confirm your password",
+    "registerButton": "Create Account",
+    "registering": "Creating account...",
+    "registerSuccess": "Account created successfully! Please login.",
+    "registerError": "Registration failed",
+    "passwordMismatch": "Passwords do not match",
+    "haveAccount": "Already have an account?",
+    "noAccount": "Don't have an account?"
   },
   "common": {
     "cancel": "Cancel",

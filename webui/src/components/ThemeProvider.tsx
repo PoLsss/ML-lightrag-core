@@ -11,7 +11,7 @@ type ThemeProviderState = {
 }
 
 const initialState: ThemeProviderState = {
-  theme: 'system',
+  theme: 'dark',
   setTheme: () => null
 }
 
@@ -26,22 +26,8 @@ export default function ThemeProvider({ children, ...props }: ThemeProviderProps
 
   useEffect(() => {
     const root = window.document.documentElement
-    root.classList.remove('light', 'dark')
-
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const handleChange = (e: MediaQueryListEvent) => {
-        root.classList.remove('light', 'dark')
-        root.classList.add(e.matches ? 'dark' : 'light')
-      }
-
-      root.classList.add(mediaQuery.matches ? 'dark' : 'light')
-      mediaQuery.addEventListener('change', handleChange)
-
-      return () => mediaQuery.removeEventListener('change', handleChange)
-    } else {
-      root.classList.add(theme)
-    }
+    root.classList.remove('light', 'dark', 'pink-neon')
+    root.classList.add(theme)
   }, [theme])
 
   const value = {

@@ -1,0 +1,116 @@
+# Access:
+#   - WebUI:         http://localhost:3000
+#   - LightRAG API:  http://localhost:9621
+#   - MinIO Console: http://localhost:10001 (minioadmin/minioadmin)
+
+services:
+  # MinIO - Object Storage for documents
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-03-12T18-04-18Z
+    container_name: minio
+    ports:
+      - "${MINIO_API_PORT:-10000}:9000"
+      - "${MINIO_CONSOLE_PORT:-10001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # MinIO Initialization - Create buckets
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      mc mb myminio/minio-db-documents --ignore-existing;
+      mc mb myminio/uploads --ignore-existing;
+      exit 0;
+      "
+    networks:
+      - rag-network
+
+  # LightRAG Backend - RAG API Server
+  lightrag:
+    build:
+      context: ./LightRag
+      dockerfile: Dockerfile
+    container_name: backend-lightrag
+    ports:
+      - "${LIGHTRAG_PORT:-9621}:9621"
+    env_file:
+      - ./LightRag/.env
+    environment:
+      # Override for Docker network connectivity
+      HOST: "0.0.0.0"
+      PORT: "9621"
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_SECURE: "false"
+    volumes:
+      - lightrag_storage:/app/data/rag_storage
+      - lightrag_inputs:/app/data/inputs
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - rag-network
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9621/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # WebUI - React Frontend (Nginx)
+  webui:
+    build:
+      context: ./webui
+      dockerfile: Dockerfile
+    container_name: webui
+    ports:
+      - "${WEBUI_PORT:-3000}:3000"
+    depends_on:
+      lightrag:
+        condition: service_healthy
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  minio_data:
+    driver: local
+  lightrag_storage:
+    driver: local
+  lightrag_inputs:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge

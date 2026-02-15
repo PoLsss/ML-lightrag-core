@@ -18,23 +18,10 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "dist",
       emptyOutDir: true,
-      // chunkSizeWarningLimit: 3800, // KHÔNG NÊN DÙNG CÁCH NÀY
-      // chunkSizeWarningLimit: 1000, // Đặt mức cảnh báo hợp lý hơn (1MB)
-
-      // Tối ưu hóa việc chia file khi build
+      // Fix circular dependency issues with dynamic imports
       rollupOptions: {
         output: {
-          manualChunks(id) {
-            // Tách các thư viện lớn ra khỏi main bundle
-            if (id.includes("node_modules")) {
-              // Tách react và react-dom ra riêng
-              if (id.includes("react") || id.includes("react-dom")) {
-                return "react-vendor";
-              }
-              // Các thư viện khác vào chung vendor
-              return "vendor";
-            }
-          },
+          manualChunks: undefined, // Disable manual chunking to avoid init errors
         },
       },
     },

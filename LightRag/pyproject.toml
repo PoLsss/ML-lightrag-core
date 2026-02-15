@@ -27,6 +27,7 @@ dependencies = [
     "google-api-core>=2.0.0,<3.0.0",
     "google-genai>=1.0.0,<2.0.0",
     "json_repair",
+    "motor>=3.0.0,<4.0.0",
     "nano-vectordb",
     "networkx",
     "numpy",
@@ -40,6 +41,7 @@ dependencies = [
     "tenacity",
     "tiktoken",
     "xlsxwriter>=3.1.0",
+    "email-validator>=2.0.0"
 ]
 
 [project.optional-dependencies]
@@ -73,6 +75,7 @@ api = [
     "httpcore",
     "httpx",
     "jiter",
+    "motor>=3.0.0,<4.0.0",
     "passlib[bcrypt]",
     "psutil",
     "PyJWT>=2.8.0,<3.0.0",
@@ -98,6 +101,7 @@ offline-storage = [
     "neo4j>=5.0.0,<7.0.0",
     "pymilvus>=2.6.2,<3.0.0",
     "pymongo>=4.0.0,<5.0.0",
+    "motor>=3.0.0,<4.0.0",
     "asyncpg>=0.29.0,<1.0.0",
     "qdrant-client>=1.7.0,<2.0.0",
 ]
@@ -131,7 +135,7 @@ evaluation = [
 
 observability = [
     # LLM observability and tracing dependencies
-    "langfuse>=3.8.1",
+    "langfuse>=3.0.0",
 ]
 
 [project.scripts]

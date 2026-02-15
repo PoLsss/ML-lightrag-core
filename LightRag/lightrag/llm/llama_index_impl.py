@@ -163,6 +163,7 @@ async def llama_index_complete(
         history_messages = []
 
     kwargs.pop("keyword_extraction", None)
+    kwargs.pop("token_tracker", None)
     result = await llama_index_complete_if_cache(
         kwargs.get("llm_instance"),
         prompt,

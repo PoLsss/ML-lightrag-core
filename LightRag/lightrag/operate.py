@@ -3108,6 +3108,12 @@ async def kg_query(
     )
 
     # Handle cache
+    # Include scope info to prevent cross-role cache leakage
+    scope_key = (
+        "scoped:" + ",".join(sorted(query_param.accessible_doc_ids))
+        if query_param.accessible_doc_ids is not None
+        else "unscoped"
+    )
     args_hash = compute_args_hash(
         query_param.mode,
         query,
@@ -3121,6 +3127,7 @@ async def kg_query(
         ll_keywords_str,
         query_param.user_prompt or "",
         query_param.enable_rerank,
+        scope_key,
     )
 
     cached_result = await handle_cache(
@@ -3375,6 +3382,7 @@ async def _get_vector_context(
                     "content": result["content"],
                     "created_at": result.get("created_at", None),
                     "file_path": result.get("file_path", "unknown_source"),
+                    "full_doc_id": result.get("full_doc_id"),
                     "source_type": "vector",  # Mark the source type
                     "chunk_id": result.get("id"),  # Add chunk_id for deduplication
                 }
@@ -4014,6 +4022,107 @@ async def _build_context_str(
     return result, final_data
 
 
+async def _filter_by_accessible_docs(
+    search_result: dict[str, Any],
+    accessible_doc_ids: set[str],
+    text_chunks_db: BaseKVStorage,
+) -> dict[str, Any]:
+    """
+    Filter search results to only include data from accessible documents.
+
+    For students, this removes entities, relations, and chunks that originate
+    from internal-scope documents, preventing data leakage into the LLM context.
+
+    Args:
+        search_result: Raw search results from _perform_kg_search
+        accessible_doc_ids: Set of document IDs the user can access
+        text_chunks_db: KV storage for looking up chunk → doc mapping
+
+    Returns:
+        Filtered search_result dict with the same structure
+    """
+    # Collect all unique chunk IDs from entities and relations source_ids
+    all_chunk_ids = set()
+    for entity in search_result.get("final_entities", []):
+        source_id = entity.get("source_id", "")
+        if source_id:
+            chunks = split_string_by_multi_markers(source_id, [GRAPH_FIELD_SEP])
+            all_chunk_ids.update(chunks)
+    for relation in search_result.get("final_relations", []):
+        source_id = relation.get("source_id", "")
+        if source_id:
+            chunks = split_string_by_multi_markers(source_id, [GRAPH_FIELD_SEP])
+            all_chunk_ids.update(chunks)
+
+    # Batch lookup chunk → full_doc_id mapping
+    accessible_chunk_ids = set()
+    if all_chunk_ids:
+        chunk_id_list = list(all_chunk_ids)
+        chunk_data_list = await text_chunks_db.get_by_ids(chunk_id_list)
+        for chunk_id, chunk_data in zip(chunk_id_list, chunk_data_list):
+            if chunk_data is not None:
+                full_doc_id = chunk_data.get("full_doc_id", "")
+                if full_doc_id in accessible_doc_ids:
+                    accessible_chunk_ids.add(chunk_id)
+
+    # Filter entities: keep only those with at least one accessible source chunk
+    filtered_entities = []
+    for entity in search_result.get("final_entities", []):
+        source_id = entity.get("source_id", "")
+        if source_id:
+            entity_chunks = split_string_by_multi_markers(
+                source_id, [GRAPH_FIELD_SEP]
+            )
+            if any(c in accessible_chunk_ids for c in entity_chunks):
+                filtered_entities.append(entity)
+        # Entities without source_id are generic — exclude for safety
+
+    # Filter relations: keep only those with at least one accessible source chunk
+    filtered_relations = []
+    for relation in search_result.get("final_relations", []):
+        source_id = relation.get("source_id", "")
+        if source_id:
+            rel_chunks = split_string_by_multi_markers(
+                source_id, [GRAPH_FIELD_SEP]
+            )
+            if any(c in accessible_chunk_ids for c in rel_chunks):
+                filtered_relations.append(relation)
+
+    # Filter vector chunks by full_doc_id
+    filtered_vector_chunks = []
+    remaining_vchunk_ids = set()
+    for chunk in search_result.get("vector_chunks", []):
+        full_doc_id = chunk.get("full_doc_id")
+        if full_doc_id and full_doc_id in accessible_doc_ids:
+            filtered_vector_chunks.append(chunk)
+            chunk_id = chunk.get("chunk_id") or chunk.get("id")
+            if chunk_id:
+                remaining_vchunk_ids.add(chunk_id)
+
+    # Filter chunk_tracking to match remaining vector chunks
+    old_tracking = search_result.get("chunk_tracking", {})
+    filtered_tracking = {
+        k: v for k, v in old_tracking.items() if k in remaining_vchunk_ids
+    }
+
+    orig_e = len(search_result.get("final_entities", []))
+    orig_r = len(search_result.get("final_relations", []))
+    orig_c = len(search_result.get("vector_chunks", []))
+    logger.info(
+        f"[Scope filter] Entities: {orig_e} -> {len(filtered_entities)}, "
+        f"Relations: {orig_r} -> {len(filtered_relations)}, "
+        f"Vector chunks: {orig_c} -> {len(filtered_vector_chunks)}"
+    )
+
+    return {
+        "final_entities": filtered_entities,
+        "final_relations": filtered_relations,
+        "vector_chunks": filtered_vector_chunks,
+        "chunk_tracking": filtered_tracking,
+        "query_embedding": search_result.get("query_embedding"),
+    }
+
+
 # Now let's update the old _build_query_context to use the new architecture
 async def _build_query_context(
     query: str,
@@ -4057,6 +4166,24 @@ async def _build_query_context(
             if not search_result["chunk_tracking"]:
                 return None
 
+    # Stage 1.5: Scope-based filtering (for non-privileged users)
+    if query_param.accessible_doc_ids is not None:
+        search_result = await _filter_by_accessible_docs(
+            search_result,
+            query_param.accessible_doc_ids,
+            text_chunks_db,
+        )
+        # Re-check after filtering — may have removed everything
+        if (
+            not search_result["final_entities"]
+            and not search_result["final_relations"]
+        ):
+            if query_param.mode != "mix":
+                return None
+            else:
+                if not search_result["chunk_tracking"]:
+                    return None
+
     # Stage 2: Apply token truncation for LLM efficiency
     truncation_result = await _apply_token_truncation(
         search_result,
@@ -4077,6 +4204,25 @@ async def _build_query_context(
         chunk_tracking=search_result["chunk_tracking"],
         query_embedding=search_result["query_embedding"],
     )
+
+    # Stage 3.5: Filter merged chunks by document scope (entity/relation chunks
+    # may still reference internal docs if entity had mixed-scope sources)
+    if query_param.accessible_doc_ids is not None and merged_chunks:
+        chunk_ids_to_check = [c["chunk_id"] for c in merged_chunks if c.get("chunk_id")]
+        if chunk_ids_to_check:
+            chunk_data_list = await text_chunks_db.get_by_ids(chunk_ids_to_check)
+            accessible_chunk_set = set()
+            for cid, cdata in zip(chunk_ids_to_check, chunk_data_list):
+                if cdata and cdata.get("full_doc_id") in query_param.accessible_doc_ids:
+                    accessible_chunk_set.add(cid)
+            before_count = len(merged_chunks)
+            merged_chunks = [
+                c for c in merged_chunks
+                if c.get("chunk_id") in accessible_chunk_set
+            ]
+            logger.info(
+                f"[Scope filter - merged chunks] {before_count} -> {len(merged_chunks)}"
+            )
 
     if (
         not merged_chunks
@@ -4776,6 +4922,22 @@ async def naive_query(
         )
         return None
 
+    # Scope-based filtering for naive mode
+    if query_param.accessible_doc_ids is not None:
+        original_count = len(chunks)
+        chunks = [
+            c for c in chunks
+            if c.get("full_doc_id") in query_param.accessible_doc_ids
+        ]
+        logger.info(
+            f"[Scope filter - naive] Chunks: {original_count} -> {len(chunks)}"
+        )
+        if not chunks:
+            logger.info(
+                "[naive_query] No accessible chunks after scope filtering; returning no-result."
+            )
+            return None
+
     # Calculate dynamic token limit for chunks
     max_total_tokens = getattr(
         query_param,
@@ -4894,6 +5056,12 @@ async def naive_query(
         return QueryResult(content=prompt_content, raw_data=raw_data)
 
     # Handle cache
+    # Include scope info to prevent cross-role cache leakage
+    scope_key = (
+        "scoped:" + ",".join(sorted(query_param.accessible_doc_ids))
+        if query_param.accessible_doc_ids is not None
+        else "unscoped"
+    )
     args_hash = compute_args_hash(
         query_param.mode,
         query,
@@ -4905,6 +5073,7 @@ async def naive_query(
         query_param.max_total_tokens,
         query_param.user_prompt or "",
         query_param.enable_rerank,
+        scope_key,
     )
     cached_result = await handle_cache(
         hashing_kv, args_hash, user_query, query_param.mode, cache_type="query"

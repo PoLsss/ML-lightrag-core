@@ -4,13 +4,36 @@ This module contains all graph-related routes for the LightRAG API.
 
 from typing import Optional, Dict, Any
 import traceback
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from lightrag.utils import logger
 from ..utils_api import get_combined_auth_dependency
+from ..tenant_context import TenantContext, get_optional_tenant_context, DEFAULT_TENANT_ID
+from ..rls import get_graph_accessible_chunks, filter_graph_by_chunks, _is_source_allowed
 
 router = APIRouter(tags=["graph"])
+
+
+def _extract_user_role_from_context(ctx: Optional[TenantContext]) -> str:
+    """
+    Extract user role from TenantContext.
+    Returns 'student' as the most restrictive default if no context.
+    """
+    if ctx is not None:
+        return ctx.user_role
+    return "student"
+
+
+async def _get_accessible_chunks_rls(ctx: Optional[TenantContext]) -> Optional[set]:
+    """
+    Get accessible chunk IDs using the centralized RLS module.
+    Returns None for admin (unrestricted), or a set of chunk IDs.
+    """
+    if ctx is None:
+        # No context → most restrictive (empty set = deny all)
+        return set()
+    return await get_graph_accessible_chunks(ctx.tenant_id, ctx.user_role, ctx.user_email)
 
 
 class EntityUpdateRequest(BaseModel):
@@ -90,15 +113,38 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
     combined_auth = get_combined_auth_dependency(api_key)
 
     @router.get("/graph/label/list", dependencies=[Depends(combined_auth)])
-    async def get_graph_labels():
+    async def get_graph_labels(request: Request, ctx: Optional[TenantContext] = Depends(get_optional_tenant_context)):
         """
-        Get all graph labels
+        Get all graph labels (filtered by user role)
 
         Returns:
-            List[str]: List of graph labels
+            List[str]: List of graph labels accessible to the current user
         """
         try:
-            return await rag.get_graph_labels()
+            accessible_chunks = await _get_accessible_chunks_rls(ctx)
+            
+            all_labels = await rag.get_graph_labels()
+            
+            # If user has full access, return all labels
+            if accessible_chunks is None:
+                return all_labels
+            
+            # Filter labels: only include labels that have accessible source_ids
+            if not accessible_chunks:
+                return []
+            
+            filtered_labels = []
+            for label in all_labels:
+                try:
+                    node_data = await rag.chunk_entity_relation_graph.get_node(label)
+                    if node_data:
+                        source_id = node_data.get("source_id", "")
+                        if _is_source_allowed(source_id, accessible_chunks):
+                            filtered_labels.append(label)
+                except Exception:
+                    pass  # Skip labels that can't be checked
+            
+            return filtered_labels
         except Exception as e:
             logger.error(f"Error getting graph labels: {str(e)}")
             logger.error(traceback.format_exc())
@@ -108,12 +154,14 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
 
     @router.get("/graph/label/popular", dependencies=[Depends(combined_auth)])
     async def get_popular_labels(
+        request: Request,
         limit: int = Query(
             300, description="Maximum number of popular labels to return", ge=1, le=1000
         ),
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
     ):
         """
-        Get popular labels by node degree (most connected entities)
+        Get popular labels by node degree (most connected entities), filtered by user role
 
         Args:
             limit (int): Maximum number of labels to return (default: 300, max: 1000)
@@ -122,7 +170,34 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
             List[str]: List of popular labels sorted by degree (highest first)
         """
         try:
-            return await rag.chunk_entity_relation_graph.get_popular_labels(limit)
+            user_role = _extract_user_role_from_context(ctx)
+            accessible_chunks = await _get_accessible_chunks_rls(ctx)
+            
+            # If user has full access, return unfiltered results
+            if accessible_chunks is None:
+                return await rag.chunk_entity_relation_graph.get_popular_labels(limit)
+            
+            # For restricted users, get more labels to filter from
+            if not accessible_chunks:
+                return []
+            
+            # Fetch extra labels to compensate for filtering
+            all_labels = await rag.chunk_entity_relation_graph.get_popular_labels(limit * 3)
+            
+            filtered_labels = []
+            for label in all_labels:
+                if len(filtered_labels) >= limit:
+                    break
+                try:
+                    node_data = await rag.chunk_entity_relation_graph.get_node(label)
+                    if node_data:
+                        source_id = node_data.get("source_id", "")
+                        if _is_source_allowed(source_id, accessible_chunks):
+                            filtered_labels.append(label)
+                except Exception:
+                    pass
+            
+            return filtered_labels
         except Exception as e:
             logger.error(f"Error getting popular labels: {str(e)}")
             logger.error(traceback.format_exc())
@@ -132,13 +207,15 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
 
     @router.get("/graph/label/search", dependencies=[Depends(combined_auth)])
     async def search_labels(
+        request: Request,
         q: str = Query(..., description="Search query string"),
         limit: int = Query(
             50, description="Maximum number of search results to return", ge=1, le=100
         ),
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
     ):
         """
-        Search labels with fuzzy matching
+        Search labels with fuzzy matching, filtered by user role
 
         Args:
             q (str): Search query string
@@ -148,7 +225,33 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
             List[str]: List of matching labels sorted by relevance
         """
         try:
-            return await rag.chunk_entity_relation_graph.search_labels(q, limit)
+            user_role = _extract_user_role_from_context(ctx)
+            accessible_chunks = await _get_accessible_chunks_rls(ctx)
+            
+            # If user has full access, return unfiltered results 
+            if accessible_chunks is None:
+                return await rag.chunk_entity_relation_graph.search_labels(q, limit)
+            
+            if not accessible_chunks:
+                return []
+            
+            # Fetch extra results to compensate for filtering
+            all_results = await rag.chunk_entity_relation_graph.search_labels(q, limit * 3)
+            
+            filtered_results = []
+            for label in all_results:
+                if len(filtered_results) >= limit:
+                    break
+                try:
+                    node_data = await rag.chunk_entity_relation_graph.get_node(label)
+                    if node_data:
+                        source_id = node_data.get("source_id", "")
+                        if _is_source_allowed(source_id, accessible_chunks):
+                            filtered_results.append(label)
+                except Exception:
+                    pass
+            
+            return filtered_results
         except Exception as e:
             logger.error(f"Error searching labels with query '{q}': {str(e)}")
             logger.error(traceback.format_exc())
@@ -158,9 +261,11 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
 
     @router.get("/graphs", dependencies=[Depends(combined_auth)])
     async def get_knowledge_graph(
+        request: Request,
         label: str = Query(..., description="Label to get knowledge graph for"),
         max_depth: int = Query(3, description="Maximum depth of graph", ge=1),
         max_nodes: int = Query(1000, description="Maximum nodes to return", ge=1),
+        ctx: Optional[TenantContext] = Depends(get_optional_tenant_context),
     ):
         """
         Retrieve a connected subgraph of nodes where the label includes the specified label.
@@ -177,16 +282,35 @@ def create_graph_routes(rag, api_key: Optional[str] = None):
             Dict[str, List[str]]: Knowledge graph for label
         """
         try:
-            # Log the label parameter to check for leading spaces
+            # Check user role for permission filtering
+            user_role = _extract_user_role_from_context(ctx)
+            
             logger.debug(
                 f"get_knowledge_graph called with label: '{label}' (length: {len(label)}, repr: {repr(label)})"
             )
 
-            return await rag.get_knowledge_graph(
+            graph_data = await rag.get_knowledge_graph(
                 node_label=label,
                 max_depth=max_depth,
                 max_nodes=max_nodes,
             )
+            
+            # ── RLS: Filter graph nodes/edges using centralized filter ──
+            accessible_chunks = await _get_accessible_chunks_rls(ctx)
+            
+            if accessible_chunks is not None:
+                try:
+                    logger.debug(f"RLS graph filter for role '{user_role}': {len(accessible_chunks)} accessible chunks")
+                    graph_data = filter_graph_by_chunks(graph_data, accessible_chunks)
+                    n_nodes = len(graph_data.nodes if hasattr(graph_data, 'nodes') else graph_data.get('nodes', []))
+                    n_edges = len(graph_data.edges if hasattr(graph_data, 'edges') else graph_data.get('edges', []))
+                    logger.debug(f"After RLS filter: {n_nodes} nodes, {n_edges} edges")
+                except Exception as filter_err:
+                    logger.error(f"Error filtering graph for role '{user_role}': {filter_err}")
+                    logger.error(traceback.format_exc())
+                    return {"nodes": [], "edges": []}
+            
+            return graph_data
         except Exception as e:
             logger.error(f"Error getting knowledge graph for label '{label}': {str(e)}")
             logger.error(traceback.format_exc())

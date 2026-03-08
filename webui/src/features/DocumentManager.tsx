@@ -69,8 +69,7 @@ import {
   ClockIcon,
   ShieldIcon,
   FileIcon,
-  TagIcon,
-  GripVerticalIcon
+  TagIcon
 } from 'lucide-react'
 
 type StatusFilter = DocStatus | 'all'
@@ -190,10 +189,6 @@ export default function DocumentManager() {
 
   // Document viewer modal state
   const [viewerDoc, setViewerDoc] = useState<DocStatusResponse | null>(null)
-
-  // Split pane state
-  const [splitRatio, setSplitRatio] = useState(60)
-  const splitContainerRef = useRef<HTMLDivElement>(null)
 
   // Resizable column widths (px)
   const [colWidths, setColWidths] = useState({
@@ -448,23 +443,6 @@ export default function DocumentManager() {
 
   const hasDocuments = filteredDocs.length > 0
 
-  // Split pane drag handler
-  const startSplitResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const onMove = (ev: MouseEvent) => {
-      if (!splitContainerRef.current) return
-      const rect = splitContainerRef.current.getBoundingClientRect()
-      const newRatio = ((ev.clientX - rect.left) / rect.width) * 100
-      setSplitRatio(Math.min(80, Math.max(25, newRatio)))
-    }
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [])
-
   // Column resize drag handler
   const startColResize = useCallback((col: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -590,15 +568,11 @@ export default function DocumentManager() {
           )}
         </div>
 
-        {/* Split pane: Table left, Detail right */}
-        <div
-          ref={splitContainerRef}
-          className="flex-1 flex min-h-0 overflow-hidden"
-        >
-          {/* Left pane: Table + Pagination */}
+        {/* Table + Pagination */}
+        <div className="flex-1 flex min-h-0 overflow-hidden">
           <div
             className="flex flex-col min-w-0 overflow-hidden"
-            style={{ width: detailDoc ? `${splitRatio}%` : '100%' }}
+            style={{ width: '100%' }}
           >
           <div className="flex-1 border rounded-md overflow-auto">
           {!hasDocuments ? (
@@ -883,231 +857,8 @@ export default function DocumentManager() {
             </div>
           </div>
         )}
-          </div> {/* End left pane */}
-
-          {/* Draggable divider */}
-          {detailDoc && (
-            <div
-              className="group relative mx-1 flex w-5 shrink-0 cursor-col-resize items-stretch justify-center self-stretch"
-              onMouseDown={startSplitResize}
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={t('documentPanel.documentManager.resizeDetailsPane')}
-              title={t('documentPanel.documentManager.resizeDetailsPane')}
-            >
-              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 rounded-full bg-border transition-colors group-hover:bg-primary/40" />
-              <div className="pointer-events-none absolute top-1/2 flex h-11 w-4 -translate-y-1/2 items-center justify-center rounded-full border border-border/80 bg-card/95 text-muted-foreground shadow-sm backdrop-blur-sm transition-all duration-150 group-hover:border-primary/40 group-hover:bg-primary/10 group-hover:text-primary group-hover:shadow-md">
-                <GripVerticalIcon className="size-3.5" />
-              </div>
-            </div>
-          )}
-
-          {/* Right pane: Document detail */}
-          {detailDoc && (() => {
-            const isCurrentUserDetail = currentUsername && detailDoc.uploaded_by && detailDoc.uploaded_by === currentUsername
-            const detailDisplayName = isCurrentUserDetail
-              ? 'Me'
-              : detailDoc.uploaded_by_display_name || detailDoc.uploaded_by || 'System'
-            return (
-              <div className="flex flex-col border rounded-md overflow-hidden" style={{ flex: 1, minWidth: 0 }}>
-                {/* Panel header */}
-                <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex items-center justify-center size-7 rounded-lg bg-primary/10 shrink-0">
-                      <FileTextIcon className="size-3.5 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium truncate">{getFullFileName(detailDoc)}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDetailDoc(null)}
-                    className="h-7 w-7 p-0 shrink-0"
-                  >
-                    <XIcon className="size-4" />
-                  </Button>
-                </div>
-                {/* Scrollable detail content */}
-                <ScrollArea className="flex-1">
-                  <div className="p-4 space-y-4">
-                    {/* Key Info Cards */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg border bg-card p-3 space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                          <TagIcon className="size-3" />
-                          Status
-                        </div>
-                        <div>{getStatusBadge(detailDoc.status)}</div>
-                      </div>
-                      <div className="rounded-lg border bg-card p-3 space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                          <ShieldIcon className="size-3" />
-                          Scope
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {(detailDoc.scope || 'internal') === 'public' ? (
-                            <>
-                              <GlobeIcon className="size-3.5 text-green-500" />
-                              <span className="text-sm font-semibold text-green-700 dark:text-green-300">Public</span>
-                            </>
-                          ) : (
-                            <>
-                              <LockIcon className="size-3.5 text-orange-500" />
-                              <span className="text-sm font-semibold text-orange-700 dark:text-orange-300">Internal</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border bg-card p-3 space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                          <HashIcon className="size-3" />
-                          Chunks
-                        </div>
-                        <p className="text-lg font-bold">{detailDoc.chunks_count ?? '-'}</p>
-                      </div>
-                    </div>
-
-                    {/* Document Information */}
-                    <div className="rounded-lg border bg-card">
-                      <div className="px-4 py-2.5 border-b bg-muted/30">
-                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                          <FileIcon className="size-3" />
-                          Document Information
-                        </h3>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        {detailDoc.file_path && (
-                          <div className="flex items-start gap-3">
-                            <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">File Path</span>
-                            <span className="text-sm break-all text-foreground">{detailDoc.file_path}</span>
-                          </div>
-                        )}
-                        <div className="flex items-start gap-3">
-                          <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">Document ID</span>
-                          <code className="text-xs font-mono text-muted-foreground break-all bg-muted/50 px-1.5 py-0.5 rounded">{detailDoc.id}</code>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">Content Size</span>
-                          <span className="text-sm">{detailDoc.content_length?.toLocaleString() ?? '-'} characters</span>
-                        </div>
-                        {detailDoc.content_summary && (
-                          <div className="flex items-start gap-3">
-                            <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">Summary</span>
-                            <span className="text-sm text-muted-foreground leading-relaxed">{detailDoc.content_summary}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Uploader & Timestamps */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg border bg-card">
-                        <div className="px-4 py-2.5 border-b bg-muted/30">
-                          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Uploaded By</h3>
-                        </div>
-                        <div className="p-4">
-                          <div className="flex items-center gap-2">
-                            {detailDoc.uploaded_by_role && (
-                              <span className={cn(
-                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold capitalize',
-                                detailDoc.uploaded_by_role === 'admin'
-                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                                  : detailDoc.uploaded_by_role === 'teacher'
-                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                                    : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                              )}>
-                                {detailDoc.uploaded_by_role}
-                              </span>
-                            )}
-                            <span className={cn('text-sm font-medium', isCurrentUserDetail ? 'text-primary font-semibold' : '')}>
-                              {detailDisplayName}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="rounded-lg border bg-card">
-                        <div className="px-4 py-2.5 border-b bg-muted/30">
-                          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                            <ClockIcon className="size-3" />
-                            Timestamps
-                          </h3>
-                        </div>
-                        <div className="p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Created</span>
-                            <span className="text-sm font-medium">
-                              {new Date(detailDoc.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Updated</span>
-                            <span className="text-sm font-medium">
-                              {new Date(detailDoc.updated_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Error */}
-                    {detailDoc.error_msg && (
-                      <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
-                        <div className="px-4 py-2.5 border-b border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
-                          <h3 className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <AlertTriangle className="size-3" />
-                            Error
-                          </h3>
-                        </div>
-                        <div className="p-4">
-                          <p className="text-sm text-red-700 dark:text-red-300">{detailDoc.error_msg}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Metadata */}
-                    {detailDoc.metadata && Object.keys(detailDoc.metadata).length > 0 && (
-                      <div className="rounded-lg border bg-card">
-                        <div className="px-4 py-2.5 border-b bg-muted/30">
-                          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Metadata</h3>
-                        </div>
-                        <div className="p-4">
-                          <pre className="text-xs font-mono whitespace-pre-wrap bg-muted/30 p-3 rounded-md border">
-                            {JSON.stringify(detailDoc.metadata, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Content Preview */}
-                    <div className="rounded-lg border bg-card">
-                      <div className="px-4 py-2.5 border-b bg-muted/30">
-                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Content Preview</h3>
-                      </div>
-                      <ScrollArea className="h-48">
-                        <div className="p-4">
-                          {isLoadingDetail ? (
-                            <div className="flex items-center justify-center h-24">
-                              <Loader2Icon className="size-5 animate-spin text-primary" />
-                              <span className="ml-2 text-sm text-muted-foreground">Loading content...</span>
-                            </div>
-                          ) : detailContent ? (
-                            <pre className="whitespace-pre-wrap text-xs font-mono leading-relaxed text-foreground/80">
-                              {detailContent}
-                            </pre>
-                          ) : (
-                            <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
-                              No content available
-                            </div>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </div>
-                </ScrollArea>
-              </div>
-            )
-          })()}
-        </div> {/* End split pane */}
+          </div>
+        </div>
       </CardContent>
 
       {/* Pipeline Status Dialog */}
@@ -1123,6 +874,219 @@ export default function DocumentManager() {
         onOpenChange={(open) => { if (!open) setViewerDoc(null) }}
       />
 
+      {/* Document Details Modal */}
+      <Dialog open={!!detailDoc} onOpenChange={(open) => !open && setDetailDoc(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col border-border/60 shadow-2xl">
+          <DialogHeader className="pb-3 border-b">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="flex items-center justify-center size-8 rounded-lg bg-primary/10">
+                <FileTextIcon className="size-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <span className="truncate block">{detailDoc ? getFullFileName(detailDoc) : ''}</span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailDoc && (() => {
+            const isCurrentUserDetail = currentUsername && detailDoc.uploaded_by && detailDoc.uploaded_by === currentUsername
+            const detailDisplayName = isCurrentUserDetail
+              ? 'Me'
+              : detailDoc.uploaded_by_display_name || detailDoc.uploaded_by || 'System'
+            return (
+            <div className="flex-1 overflow-auto space-y-5 pr-1">
+              {/* Key Info Cards Row */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* Status Card */}
+                <div className="rounded-lg border bg-card p-3 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <TagIcon className="size-3" />
+                    Status
+                  </div>
+                  <div>{getStatusBadge(detailDoc.status)}</div>
+                </div>
+
+                {/* Scope Card */}
+                <div className="rounded-lg border bg-card p-3 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <ShieldIcon className="size-3" />
+                    Scope
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {(detailDoc.scope || 'internal') === 'public' ? (
+                      <>
+                        <GlobeIcon className="size-3.5 text-green-500" />
+                        <span className="text-sm font-semibold text-green-700 dark:text-green-300">Public</span>
+                      </>
+                    ) : (
+                      <>
+                        <LockIcon className="size-3.5 text-orange-500" />
+                        <span className="text-sm font-semibold text-orange-700 dark:text-orange-300">Internal</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chunks Card */}
+                <div className="rounded-lg border bg-card p-3 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <HashIcon className="size-3" />
+                    Chunks
+                  </div>
+                  <p className="text-lg font-bold">{detailDoc.chunks_count ?? '-'}</p>
+                </div>
+              </div>
+
+              {/* Document Information Section */}
+              <div className="rounded-lg border bg-card">
+                <div className="px-4 py-2.5 border-b bg-muted/30">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <FileIcon className="size-3" />
+                    Document Information
+                  </h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  {/* File Path */}
+                  {detailDoc.file_path && (
+                    <div className="flex items-start gap-3">
+                      <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">File Path</span>
+                      <span className="text-sm break-all text-foreground">{detailDoc.file_path}</span>
+                    </div>
+                  )}
+                  {/* Document ID */}
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">Document ID</span>
+                    <code className="text-xs font-mono text-muted-foreground break-all bg-muted/50 px-1.5 py-0.5 rounded">{detailDoc.id}</code>
+                  </div>
+                  {/* Content Length */}
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">Content Size</span>
+                    <span className="text-sm">{detailDoc.content_length?.toLocaleString() ?? '-'} characters</span>
+                  </div>
+                  {/* Content Summary */}
+                  {detailDoc.content_summary && (
+                    <div className="flex items-start gap-3">
+                      <span className="text-xs font-medium text-muted-foreground w-24 shrink-0 pt-0.5">Summary</span>
+                      <span className="text-sm text-muted-foreground leading-relaxed">{detailDoc.content_summary}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Uploader & Timestamps Section */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Uploader Info */}
+                <div className="rounded-lg border bg-card">
+                  <div className="px-4 py-2.5 border-b bg-muted/30">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Uploaded By</h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-2">
+                      {detailDoc.uploaded_by_role && (
+                        <span className={cn(
+                          'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold capitalize',
+                          detailDoc.uploaded_by_role === 'admin'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                            : detailDoc.uploaded_by_role === 'teacher'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                        )}>
+                          {detailDoc.uploaded_by_role}
+                        </span>
+                      )}
+                      <span className={cn(
+                        'text-sm font-medium',
+                        isCurrentUserDetail ? 'text-primary font-semibold' : ''
+                      )}>
+                        {detailDisplayName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timestamps */}
+                <div className="rounded-lg border bg-card">
+                  <div className="px-4 py-2.5 border-b bg-muted/30">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <ClockIcon className="size-3" />
+                      Timestamps
+                    </h3>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Created</span>
+                      <span className="text-sm font-medium">
+                        {new Date(detailDoc.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Updated</span>
+                      <span className="text-sm font-medium">
+                        {new Date(detailDoc.updated_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {detailDoc.error_msg && (
+                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
+                  <div className="px-4 py-2.5 border-b border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                    <h3 className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="size-3" />
+                      Error
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-red-700 dark:text-red-300">{detailDoc.error_msg}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata */}
+              {detailDoc.metadata && Object.keys(detailDoc.metadata).length > 0 && (
+                <div className="rounded-lg border bg-card">
+                  <div className="px-4 py-2.5 border-b bg-muted/30">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Metadata</h3>
+                  </div>
+                  <div className="p-4">
+                    <pre className="text-xs font-mono whitespace-pre-wrap bg-muted/30 p-3 rounded-md border">
+                      {JSON.stringify(detailDoc.metadata, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Content Preview */}
+              <div className="rounded-lg border bg-card">
+                <div className="px-4 py-2.5 border-b bg-muted/30">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Content Preview</h3>
+                </div>
+                <ScrollArea className="h-48">
+                  <div className="p-4">
+                    {isLoadingDetail ? (
+                      <div className="flex items-center justify-center h-24">
+                        <Loader2Icon className="size-5 animate-spin text-primary" />
+                        <span className="ml-2 text-sm text-muted-foreground">Loading content...</span>
+                      </div>
+                    ) : detailContent ? (
+                      <pre className="whitespace-pre-wrap text-xs font-mono leading-relaxed text-foreground/80">
+                        {detailContent}
+                      </pre>
+                    ) : (
+                      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+                        No content available
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

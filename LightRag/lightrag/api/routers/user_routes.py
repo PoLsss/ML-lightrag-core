@@ -372,11 +372,41 @@ def create_user_routes() -> APIRouter:
         request: Request,
         email: str,
         user_data: UpdateUserRequest,
-        admin_user: dict = Depends(require_admin)
+        current_user: dict = Depends(get_current_user)
     ):
         """
-        Update an existing user. Admin only.
+        Update an existing user.
+        - Any authenticated user can update their own display_name and password.
+        - Only admins can update other users or change role/status/metadata.
         """
+        is_self = current_user["email"].lower() == email.lower()
+        is_admin = current_user.get("role") == UserRole.ADMIN
+
+        # Non-admins can only update themselves
+        if not is_self and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+
+        # Non-admins cannot change privileged fields
+        if not is_admin:
+            if user_data.role is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admin access required to change role"
+                )
+            if user_data.status is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admin access required to change status"
+                )
+            if user_data.metadata is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admin access required to change metadata"
+                )
+
         existing = await get_user_by_email(email)
         if not existing:
             raise HTTPException(
@@ -436,7 +466,7 @@ def create_user_routes() -> APIRouter:
         
         # Log audit
         await log_audit(
-            user_email=admin_user["email"],
+            user_email=current_user["email"],
             action=AuditAction.USER_UPDATE,
             resource_type="user",
             resource_id=email,

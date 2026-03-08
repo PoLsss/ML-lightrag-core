@@ -93,6 +93,7 @@ offline-docs = [
     "pypdf2>=3.0.0",
     "python-docx>=0.8.11,<2.0.0",
     "python-pptx>=0.6.21,<2.0.0",
+    "fastapi",
 ]
 
 offline-storage = [

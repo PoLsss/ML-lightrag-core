@@ -69,6 +69,13 @@
   --brand-hover: hsl(160 60% 95%);
   --brand-border: hsl(160 50% 80%);
   --brand-border-dark: hsl(160 40% 30%);
+
+  /* Chart colors */
+  --chart-1: hsl(160 84% 39%);
+  --chart-2: hsl(199 89% 48%);
+  --chart-3: hsl(38 92% 50%);
+  --chart-4: hsl(280 70% 60%);
+  --chart-5: hsl(0 72% 51%);
 }
 
 /* ============================================
@@ -120,6 +127,13 @@
   --brand-hover: hsl(162 40% 10%);
   --brand-border: hsl(160 40% 22%);
   --brand-border-dark: hsl(160 30% 12%);
+
+  /* Chart colors */
+  --chart-1: hsl(160 84% 45%);
+  --chart-2: hsl(199 89% 55%);
+  --chart-3: hsl(38 92% 55%);
+  --chart-4: hsl(280 70% 65%);
+  --chart-5: hsl(0 70% 55%);
 }
 
 /* ============================================
@@ -173,6 +187,13 @@
   --brand-hover: hsl(330 40% 16%);
   --brand-border: hsl(330 40% 28%);
   --brand-border-dark: hsl(280 30% 14%);
+
+  /* Chart colors */
+  --chart-1: hsl(330 100% 60%);
+  --chart-2: hsl(180 100% 50%);
+  --chart-3: hsl(45 100% 55%);
+  --chart-4: hsl(280 100% 70%);
+  --chart-5: hsl(0 80% 60%);
 }
 
 @theme inline {

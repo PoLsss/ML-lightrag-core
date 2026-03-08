@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
     ActivityIcon,
@@ -35,6 +36,7 @@ type PeriodFilter = 'today' | 'week' | 'month' | 'all'
 
 export default function Dashboard() {
     const { isAuthenticated } = useAuthStore()
+    const { t } = useTranslation()
     const [isLoading, setIsLoading] = useState(true)
     const [period, setPeriod] = useState<PeriodFilter>('week')
 
@@ -125,9 +127,9 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Dashboard</h1>
+                    <h1 className="text-2xl font-bold">{t('dashboard.title')}</h1>
                     <p className="text-muted-foreground">
-                        Monitor your usage and analytics
+                        {t('dashboard.subtitle')}
                     </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -136,15 +138,15 @@ export default function Dashboard() {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="today">Today</SelectItem>
-                            <SelectItem value="week">This Week</SelectItem>
-                            <SelectItem value="month">This Month</SelectItem>
-                            <SelectItem value="all">All Time</SelectItem>
+                            <SelectItem value="today">{t('dashboard.today')}</SelectItem>
+                            <SelectItem value="week">{t('dashboard.thisWeek')}</SelectItem>
+                            <SelectItem value="month">{t('dashboard.thisMonth')}</SelectItem>
+                            <SelectItem value="all">{t('dashboard.allTime')}</SelectItem>
                         </SelectContent>
                     </Select>
                     <Button variant="outline" size="sm" onClick={fetchData} disabled={isLoading}>
                         <RefreshCwIcon className={`mr-2 size-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        Refresh
+                        {t('dashboard.refresh')}
                     </Button>
                 </div>
             </div>
@@ -152,28 +154,28 @@ export default function Dashboard() {
             {/* Stats Cards */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatsCard
-                    title="Queries Today"
+                    title={t('dashboard.queriesToday')}
                     value={stats?.queries_today ?? 0}
                     icon={ActivityIcon}
-                    description="Total queries made today"
+                    description={t('dashboard.queriesTodayDesc')}
                 />
                 <StatsCard
-                    title="Total Documents"
+                    title={t('dashboard.totalDocuments')}
                     value={stats?.total_documents ?? 0}
                     icon={FileTextIcon}
-                    description="Documents in the system"
+                    description={t('dashboard.totalDocumentsDesc')}
                 />
                 <StatsCard
-                    title="Tokens Used Today"
+                    title={t('dashboard.tokensUsedToday')}
                     value={(stats?.tokens_used_today ?? 0).toLocaleString()}
                     icon={CoinsIcon}
-                    description={`Cost: ${formatCost(stats?.cost_today ?? 0)}`}
+                    description={t('dashboard.costToday', { cost: formatCost(stats?.cost_today ?? 0) })}
                 />
                 <StatsCard
-                    title="Avg Response Time"
+                    title={t('dashboard.avgResponseTime')}
                     value={formatTime(stats?.avg_response_time_ms ?? 0)}
                     icon={ClockIcon}
-                    description="Average query response time"
+                    description={t('dashboard.avgResponseTimeDesc')}
                 />
             </div>
 
@@ -183,9 +185,9 @@ export default function Dashboard() {
                 <div className="rounded-xl border border-border bg-card p-6">
                     <div className="mb-4 flex items-center justify-between">
                         <div>
-                            <h3 className="font-semibold">Query Trends</h3>
+                            <h3 className="font-semibold">{t('dashboard.queryTrends')}</h3>
                             <p className="text-sm text-muted-foreground">
-                                Queries and tokens over time
+                                {t('dashboard.queryTrendsDesc')}
                             </p>
                         </div>
                         <TrendingUpIcon className="size-5 text-muted-foreground" />
@@ -196,26 +198,26 @@ export default function Dashboard() {
                 {/* Summary Stats */}
                 <div className="rounded-xl border border-border bg-card p-6">
                     <div className="mb-4">
-                        <h3 className="font-semibold">Usage Summary</h3>
+                        <h3 className="font-semibold">{t('dashboard.usageSummary')}</h3>
                         <p className="text-sm text-muted-foreground">
-                            All-time statistics
+                            {t('dashboard.allTimeStats')}
                         </p>
                     </div>
                     <div className="space-y-4">
                         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-4">
-                            <span className="text-muted-foreground">Total Queries</span>
+                            <span className="text-muted-foreground">{t('dashboard.totalQueries')}</span>
                             <span className="text-2xl font-bold">
                                 {(stats?.total_queries ?? 0).toLocaleString()}
                             </span>
                         </div>
                         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-4">
-                            <span className="text-muted-foreground">Total Tokens</span>
+                            <span className="text-muted-foreground">{t('dashboard.totalTokens')}</span>
                             <span className="text-2xl font-bold">
                                 {(stats?.total_tokens ?? 0).toLocaleString()}
                             </span>
                         </div>
                         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-4">
-                            <span className="text-muted-foreground">Total Cost</span>
+                            <span className="text-muted-foreground">{t('dashboard.totalCost')}</span>
                             <span className="text-2xl font-bold">
                                 {formatCost(stats?.total_cost ?? 0)}
                             </span>
@@ -227,9 +229,9 @@ export default function Dashboard() {
             {/* Query Logs Table */}
             <div className="rounded-xl border border-border bg-card p-6">
                 <div className="mb-4">
-                    <h3 className="font-semibold">Recent Query Logs</h3>
+                    <h3 className="font-semibold">{t('dashboard.recentLogs')}</h3>
                     <p className="text-sm text-muted-foreground">
-                        Detailed log of all queries
+                        {t('dashboard.recentLogsDesc')}
                     </p>
                 </div>
                 <QueryLogsTable

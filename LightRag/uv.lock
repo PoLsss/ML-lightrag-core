@@ -1988,6 +1988,7 @@ offline = [
     { name = "aioboto3" },
     { name = "anthropic" },
     { name = "asyncpg" },
+    { name = "fastapi" },
     { name = "google-api-core" },
     { name = "google-genai" },
     { name = "llama-index" },
@@ -2008,6 +2009,7 @@ offline = [
     { name = "zhipuai" },
 ]
 offline-docs = [
+    { name = "fastapi" },
     { name = "openpyxl" },
     { name = "pycryptodome" },
     { name = "pypdf2" },
@@ -2051,6 +2053,7 @@ requires-dist = [
     { name = "distro", marker = "extra == 'api'" },
     { name = "email-validator", specifier = ">=2.0.0" },
     { name = "fastapi", marker = "extra == 'api'" },
+    { name = "fastapi", marker = "extra == 'offline-docs'" },
     { name = "future" },
     { name = "future", marker = "extra == 'api'" },
     { name = "google-api-core", specifier = ">=2.0.0,<3.0.0" },

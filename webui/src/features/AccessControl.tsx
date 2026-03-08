@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
     ShieldIcon,
@@ -46,6 +47,7 @@ type UserStatus = 'active' | 'inactive' | 'suspended'
 
 export default function AccessControl() {
     const { isAuthenticated, userRole } = useAuthStore()
+    const { t } = useTranslation()
     const [isLoading, setIsLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -71,7 +73,7 @@ export default function AccessControl() {
             setUsers(data.users)
         } catch (error) {
             console.error('Failed to fetch users:', error)
-            toast.error('Failed to load users')
+            toast.error(t('accessControl.failed'))
         } finally {
             setIsLoading(false)
         }
@@ -121,7 +123,7 @@ export default function AccessControl() {
                 metadata: {}
             }
             await createUser(userData)
-            toast.success('User created successfully')
+            toast.success(t('accessControl.createSuccess'))
             setIsCreateDialogOpen(false)
             resetForm()
             fetchUsers()
@@ -150,7 +152,7 @@ export default function AccessControl() {
                 status: formStatus,
                 ...(formPassword && { password: formPassword })
             })
-            toast.success('User updated successfully')
+            toast.success(t('accessControl.updateSuccess'))
             setEditingUser(null)
             resetForm()
             fetchUsers()
@@ -162,11 +164,11 @@ export default function AccessControl() {
     }
 
     const handleDeleteUser = async (email: string) => {
-        if (!confirm(`Are you sure you want to delete user ${email}?`)) return
+        if (!confirm(t('accessControl.deleteConfirm', { email }))) return
 
         try {
             await deleteUser(email)
-            toast.success('User deleted successfully')
+            toast.success(t('accessControl.deleteSuccess'))
             fetchUsers()
         } catch (error) {
             console.error('Failed to delete user:', error)
@@ -207,16 +209,16 @@ export default function AccessControl() {
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
                         <ShieldIcon className="size-6" />
-                        Access Control
+                        {t('accessControl.title')}
                     </h1>
                     <p className="text-muted-foreground">
-                        Manage users and document access permissions
+                        {t('accessControl.subtitle')}
                     </p>
                 </div>
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoading}>
                         <RefreshCwIcon className={`mr-2 size-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        Refresh
+                        {t('accessControl.refresh')}
                     </Button>
                     <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
                         if (open) resetForm()
@@ -225,19 +227,19 @@ export default function AccessControl() {
                         <DialogTrigger asChild>
                             <Button size="sm">
                                 <PlusIcon className="mr-2 size-4" />
-                                Add User
+                                {t('accessControl.addUser')}
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Create New User</DialogTitle>
+                                <DialogTitle>{t('accessControl.createUser')}</DialogTitle>
                                 <DialogDescription>
-                                    Add a new user to the system
+                                    {t('accessControl.createUserDesc')}
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 py-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Email</label>
+                                    <label className="text-sm font-medium">{t('accessControl.email')}</label>
                                     <Input
                                         placeholder="user@example.com"
                                         value={formEmail}
@@ -245,7 +247,7 @@ export default function AccessControl() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Password</label>
+                                    <label className="text-sm font-medium">{t('accessControl.password')}</label>
                                     <Input
                                         type="password"
                                         placeholder="••••••••"
@@ -254,7 +256,7 @@ export default function AccessControl() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Display Name</label>
+                                    <label className="text-sm font-medium">{t('accessControl.displayName')}</label>
                                     <Input
                                         placeholder="John Doe"
                                         value={formDisplayName}
@@ -262,24 +264,24 @@ export default function AccessControl() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Role</label>
+                                    <label className="text-sm font-medium">{t('accessControl.role')}</label>
                                     <Select value={formRole} onValueChange={(v) => setFormRole(v as UserRole)}>
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="admin">Admin</SelectItem>
-                                            <SelectItem value="teacher">Teacher</SelectItem>
-                                            <SelectItem value="student">Student</SelectItem>
+                                            <SelectItem value="admin">{t('accessControl.admin')}</SelectItem>
+                                            <SelectItem value="teacher">{t('accessControl.teacher')}</SelectItem>
+                                            <SelectItem value="student">{t('accessControl.student')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                                    Cancel
+                                    {t('accessControl.cancel')}
                                 </Button>
-                                <Button onClick={handleCreateUser}>Create User</Button>
+                                <Button onClick={handleCreateUser}>{t('accessControl.createUserButton')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -294,7 +296,7 @@ export default function AccessControl() {
                             <UsersIcon className="size-6 text-primary" />
                         </div>
                         <div>
-                            <p className="text-sm text-muted-foreground">Total Users</p>
+                            <p className="text-sm text-muted-foreground">{t('accessControl.totalUsers')}</p>
                             <p className="text-2xl font-bold">{users.length}</p>
                         </div>
                     </div>
@@ -305,7 +307,7 @@ export default function AccessControl() {
                             <ShieldIcon className="size-6 text-blue-500" />
                         </div>
                         <div>
-                            <p className="text-sm text-muted-foreground">Admins</p>
+                            <p className="text-sm text-muted-foreground">{t('accessControl.admins')}</p>
                             <p className="text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</p>
                         </div>
                     </div>
@@ -316,7 +318,7 @@ export default function AccessControl() {
                             <FileTextIcon className="size-6 text-green-500" />
                         </div>
                         <div>
-                            <p className="text-sm text-muted-foreground">Active Users</p>
+                            <p className="text-sm text-muted-foreground">{t('accessControl.activeUsers')}</p>
                             <p className="text-2xl font-bold">{users.filter(u => u.status === 'active').length}</p>
                         </div>
                     </div>
@@ -326,20 +328,20 @@ export default function AccessControl() {
             {/* Users Table */}
             <div className="rounded-xl border border-border bg-card">
                 <div className="p-6 border-b border-border">
-                    <h3 className="font-semibold">User Management</h3>
+                    <h3 className="font-semibold">{t('accessControl.userManagement')}</h3>
                     <p className="text-sm text-muted-foreground">
-                        View and manage system users
+                        {t('accessControl.userManagementDesc')}
                     </p>
                 </div>
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-muted/50">
-                                <TableHead>User</TableHead>
-                                <TableHead>Role</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Last Login</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                                <TableHead>{t('accessControl.user')}</TableHead>
+                                <TableHead>{t('accessControl.role')}</TableHead>
+                                <TableHead>{t('accessControl.status')}</TableHead>
+                                <TableHead>{t('accessControl.lastLogin')}</TableHead>
+                                <TableHead className="text-right">{t('accessControl.actions')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -348,14 +350,14 @@ export default function AccessControl() {
                                     <TableCell colSpan={5} className="h-24 text-center">
                                         <div className="flex items-center justify-center">
                                             <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                            <span className="ml-2">Loading...</span>
+                                            <span className="ml-2">{t('accessControl.loading')}</span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
                             ) : users.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                        No users found
+                                        {t('accessControl.noUsersFound')}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -379,7 +381,7 @@ export default function AccessControl() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
-                                            {user.last_login ? new Date(user.last_login).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'Never'}
+                                            {user.last_login ? new Date(user.last_login).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : t('accessControl.never')}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
@@ -408,14 +410,14 @@ export default function AccessControl() {
             <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit User</DialogTitle>
+                        <DialogTitle>{t('accessControl.editUser')}</DialogTitle>
                         <DialogDescription>
-                            Update user information for {editingUser?.email}
+                            {t('accessControl.editUserDesc', { email: editingUser?.email })}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Display Name</label>
+                            <label className="text-sm font-medium">{t('accessControl.displayName')}</label>
                             <Input
                                 placeholder="John Doe"
                                 value={formDisplayName}
@@ -423,7 +425,7 @@ export default function AccessControl() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">New Password (leave empty to keep current)</label>
+                            <label className="text-sm font-medium">{t('accessControl.newPasswordDesc')}</label>
                             <Input
                                 type="password"
                                 placeholder="••••••••"
@@ -438,31 +440,31 @@ export default function AccessControl() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                    <SelectItem value="teacher">Teacher</SelectItem>
-                                    <SelectItem value="student">Student</SelectItem>
+                                    <SelectItem value="admin">{t('accessControl.admin')}</SelectItem>
+                                    <SelectItem value="teacher">{t('accessControl.teacher')}</SelectItem>
+                                    <SelectItem value="student">{t('accessControl.student')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Status</label>
+                            <label className="text-sm font-medium">{t('accessControl.status')}</label>
                             <Select value={formStatus} onValueChange={(v) => setFormStatus(v as UserStatus)}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                    <SelectItem value="suspended">Suspended</SelectItem>
+                                    <SelectItem value="active">{t('accessControl.active')}</SelectItem>
+                                    <SelectItem value="inactive">{t('accessControl.inactive')}</SelectItem>
+                                    <SelectItem value="suspended">{t('accessControl.suspended')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setEditingUser(null)}>
-                            Cancel
+                            {t('accessControl.cancel')}
                         </Button>
-                        <Button onClick={handleUpdateUser}>Save Changes</Button>
+                        <Button onClick={handleUpdateUser}>{t('accessControl.saveChanges')}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

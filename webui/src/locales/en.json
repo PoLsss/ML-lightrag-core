@@ -59,6 +59,15 @@
       "chatQueries": "Chat Queries",
       "usedRetrieval": "Used document retrieval",
       "directResponse": "Direct LLM response"
+    },
+    "retrieval": {
+      "title": "Retrieval Info",
+      "graph": "Retrieved Graph",
+      "chunks": "Retrieved Chunks",
+      "noChunks": "No retrieved chunks available",
+      "noChunksHint": "Send a RAG query to see retrieved chunks here",
+      "unknownFile": "Unknown file",
+      "clickToExpand": "Click to view full text"
     }
   },
   "login": {

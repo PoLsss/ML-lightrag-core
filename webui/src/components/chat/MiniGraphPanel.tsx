@@ -1,166 +1,320 @@
-import { useEffect, useMemo } from "react";
-import { SigmaContainer, useSigma } from "@react-sigma/core";
-import { useWorkerLayoutForceAtlas2 } from "@react-sigma/layout-forceatlas2";
-import { useGraphStore } from "@/stores/graph";
-import { useSettingsStore } from "@/stores/settings";
-import { labelColorDarkTheme, labelColorLightTheme } from "@/lib/constants";
-import { NetworkIcon } from "lucide-react";
-
-// Import shader để vẽ đẹp hơn
+import { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  SigmaContainer,
+  useSigma,
+  useRegisterEvents,
+  useSetSettings,
+  useCamera,
+} from "@react-sigma/core";
+import { useLayoutForceAtlas2 } from "@react-sigma/layout-forceatlas2";
+import { UndirectedGraph } from "graphology";
 import { NodeBorderProgram } from "@sigma/node-border";
+import { createEdgeCurveProgram } from "@sigma/edge-curve";
 import "@react-sigma/core/lib/style.css";
 
-const SubGraphLoader = () => {
-  const sigma = useSigma();
-  const graphData = useGraphStore.use.miniGraphData();
+import { useGraphStore, GraphData } from "@/stores/graph";
+import { useSettingsStore } from "@/stores/settings";
+import {
+  labelColorDarkTheme,
+  labelColorLightTheme,
+  nodeBorderColor,
+  nodeBorderColorSelected,
+  nodeColorDisabled,
+  edgeColorDarkTheme,
+  edgeColorHighlightedDarkTheme,
+  edgeColorHighlightedLightTheme,
+  minNodeSize,
+  maxNodeSize,
+} from "@/lib/constants";
+import { resolveNodeColor } from "@/utils/graphColor";
+import { NetworkIcon, ZoomInIcon, ZoomOutIcon, FullscreenIcon } from "lucide-react";
+import seedrandom from "seedrandom";
 
-  // Cấu hình ForceAtlas2: Tự động dàn trang theo vật lý
-  const { start, stop, kill } = useWorkerLayoutForceAtlas2({
-    settings: {
-      slowDown: 10, // Chậm lại để chuyển động mượt
-      gravity: 0.5, // Lực hút vừa phải
-      scalingRatio: 8, // Tăng khoảng cách giữa các node
-    },
+// ─── Build graphology graph from miniGraphData ───────────────────────────────
+
+function buildGraphologyGraph(data: GraphData): UndirectedGraph {
+  const graph = new UndirectedGraph();
+  const rng = seedrandom("mini-graph-seed");
+  const typeColorMap = new Map<string, string>();
+
+  // Pre-compute degree for node sizing
+  const degreeMap: Record<string, number> = {};
+  data.relationships?.forEach((rel) => {
+    degreeMap[rel.src_id] = (degreeMap[rel.src_id] || 0) + 1;
+    degreeMap[rel.tgt_id] = (degreeMap[rel.tgt_id] || 0) + 1;
   });
 
+  const degrees = Object.values(degreeMap);
+  const minDeg = degrees.length > 0 ? Math.min(...degrees) : 1;
+  const maxDeg = degrees.length > 0 ? Math.max(...degrees) : 1;
+  const degRange = maxDeg - minDeg;
+  const sizeRange = maxNodeSize - minNodeSize;
+
+  // Add nodes with entity-type coloring
+  data.entities?.forEach((entity) => {
+    const nodeId = entity.entity_name;
+    if (!nodeId || graph.hasNode(nodeId)) return;
+
+    const { color } = resolveNodeColor(entity.entity_type, typeColorMap);
+    const degree = degreeMap[nodeId] || 0;
+    const size =
+      degRange > 0
+        ? minNodeSize + sizeRange * Math.sqrt((degree - minDeg) / degRange)
+        : (minNodeSize + maxNodeSize) / 2;
+
+    graph.addNode(nodeId, {
+      label: nodeId,
+      x: rng() * 100,
+      y: rng() * 100,
+      size: Math.round(size),
+      color,
+      borderColor: nodeBorderColor,
+      borderSize: 0.2,
+    });
+  });
+
+  // Add edges with curve type and weight-based sizing
+  const weights: number[] = [];
+  data.relationships?.forEach((rel) => {
+    if (graph.hasNode(rel.src_id) && graph.hasNode(rel.tgt_id)) {
+      weights.push(rel.weight || 1);
+    }
+  });
+  const minW = weights.length > 0 ? Math.min(...weights) : 1;
+  const maxW = weights.length > 0 ? Math.max(...weights) : 1;
+  const wRange = maxW - minW;
+
+  data.relationships?.forEach((rel) => {
+    if (!graph.hasNode(rel.src_id) || !graph.hasNode(rel.tgt_id)) return;
+    if (graph.hasEdge(rel.src_id, rel.tgt_id)) return;
+
+    const w = rel.weight || 1;
+    const edgeSize =
+      wRange > 0 ? 1 + 3 * Math.sqrt((w - minW) / wRange) : 1.5;
+
+    graph.addEdge(rel.src_id, rel.tgt_id, {
+      label: rel.description,
+      size: edgeSize,
+      originalWeight: w,
+      type: "curvedNoArrow",
+    });
+  });
+
+  return graph;
+}
+
+// ─── Inner controller: layout + highlight reducers ───────────────────────────
+
+const MiniGraphController = ({
+  graphologyGraph,
+}: {
+  graphologyGraph: UndirectedGraph;
+}) => {
+  const sigma = useSigma();
+  const registerEvents = useRegisterEvents();
+  const setSettings = useSetSettings();
+  const { assign } = useLayoutForceAtlas2({ iterations: 150 });
+
+  const theme = useSettingsStore.use.theme();
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [draggedNode, setDraggedNode] = useState<string | null>(null);
+
+  // Load graph into sigma and apply layout
   useEffect(() => {
-    if (!sigma || !graphData) return;
-
-    const graph = sigma.getGraph();
-    graph.clear();
-
-    // 1. Vẽ Nodes
-    if (graphData.entities) {
-      graphData.entities.forEach((entity) => {
-        const nodeId = entity.entity_name || entity.name;
-        if (!nodeId) return;
-
-        try {
-          if (!graph.hasNode(nodeId)) {
-            graph.addNode(nodeId, {
-              label: nodeId,
-              // Random vị trí ban đầu để tạo đà cho ForceAtlas
-              x: Math.random() * 100,
-              y: Math.random() * 100,
-
-              // [FIX 1] Kích thước nhỏ lại để lộ cạnh nối
-              size: 6,
-
-              color: "#10b981", // Xanh Emerald
-              borderColor: "#065f46",
-              borderSize: 0.5,
-            });
-          }
-        } catch (e) {}
-      });
+    if (!sigma || !graphologyGraph) return;
+    try {
+      (sigma as any).setGraph(graphologyGraph);
+    } catch {
+      (sigma as any).graph = graphologyGraph;
     }
+    assign();
+  }, [sigma, graphologyGraph, assign]);
 
-    // 2. Vẽ Edges
-    if (graphData.relationships) {
-      graphData.relationships.forEach((rel) => {
+  // Drag events
+  useEffect(() => {
+    registerEvents({
+      downNode: (e: any) => {
+        setDraggedNode(e.node);
+      },
+      mousemovebody: (e: any) => {
+        if (!draggedNode) return;
+        const pos = sigma.viewportToGraph(e);
+        (sigma.getGraph() as UndirectedGraph).setNodeAttribute(draggedNode, "x", pos.x);
+        (sigma.getGraph() as UndirectedGraph).setNodeAttribute(draggedNode, "y", pos.y);
+        e.preventSigmaDefault();
+        e.original.preventDefault();
+        e.original.stopPropagation();
+      },
+      mouseup: () => setDraggedNode(null),
+      enterNode: (e: any) => setHoveredNode(e.node),
+      leaveNode: () => setHoveredNode(null),
+      clickStage: () => setHoveredNode(null),
+    });
+  }, [registerEvents, sigma, draggedNode]);
+
+  // Visual reducers matching GraphViewer quality
+  useEffect(() => {
+    const isDark =
+      theme === "dark" ||
+      document.documentElement.classList.contains("dark");
+    const labelColor = isDark ? labelColorDarkTheme : labelColorLightTheme;
+    const edgeColor = isDark ? edgeColorDarkTheme : undefined;
+    const edgeHighlightColor = isDark
+      ? edgeColorHighlightedDarkTheme
+      : edgeColorHighlightedLightTheme;
+
+    setSettings({
+      renderLabels: true,
+      renderEdgeLabels: false,
+      nodeReducer: (node, data) => {
+        const newData = { ...data, labelColor };
+        if (!hoveredNode) return newData;
+
         try {
-          if (graph.hasNode(rel.src_id) && graph.hasNode(rel.tgt_id)) {
-            if (!graph.hasEdge(rel.src_id, rel.tgt_id)) {
-              graph.addEdge(rel.src_id, rel.tgt_id, {
-                size: 2,
-                // [FIX 2] Màu xám đậm hơn để nhìn rõ trên nền trắng
-                color: "#64748b", // Slate-500
-                type: "line",
-                label: rel.description,
-              });
+          const graph = sigma.getGraph();
+          const isNeighbor =
+            node === hoveredNode || graph.neighbors(hoveredNode).includes(node);
+          if (isNeighbor) {
+            newData.highlighted = true;
+            if (node === hoveredNode) {
+              (newData as any).borderColor = nodeBorderColorSelected;
             }
+          } else {
+            (newData as any).color = nodeColorDisabled;
+            newData.highlighted = false;
           }
-        } catch (e) {}
-      });
-    }
+        } catch {
+          // node may not exist in graph yet
+        }
+        return newData;
+      },
+      edgeReducer: (edge, data) => {
+        const newData = { ...data, color: edgeColor };
+        if (!hoveredNode) return newData;
 
-    // 3. Kích hoạt thuật toán Force Atlas 2
-    if (graph.order > 0) {
-      start(); // Bắt đầu chạy
-
-      // Dừng sau 2.5 giây (khi hình đã ổn định)
-      const timer = setTimeout(() => {
-        stop();
-        // Zoom vừa khít màn hình
-        const camera = sigma.getCamera();
-        camera.animate({ ratio: 1.1, x: 0.5, y: 0.5 }, { duration: 500 });
-      }, 2500);
-
-      return () => {
-        kill();
-        clearTimeout(timer);
-      };
-    }
-  }, [graphData, sigma, start, stop, kill]);
+        try {
+          const graph = sigma.getGraph();
+          if (graph.extremities(edge).includes(hoveredNode)) {
+            (newData as any).color = edgeHighlightColor;
+          } else {
+            (newData as any).color = nodeColorDisabled;
+          }
+        } catch {
+          // edge may not exist yet
+        }
+        return newData;
+      },
+    });
+  }, [setSettings, sigma, hoveredNode, theme]);
 
   return null;
 };
+
+// ─── Inline zoom bar ──────────────────────────────────────────────────────────
+
+const MiniZoomBar = () => {
+  const { zoomIn, zoomOut, reset } = useCamera({ duration: 200, factor: 1.5 });
+  return (
+    <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 bg-background/80 backdrop-blur rounded-lg border shadow-sm p-1">
+      <button
+        onClick={() => zoomIn()}
+        className="p-1.5 hover:bg-accent rounded transition-colors"
+        title="Zoom In"
+      >
+        <ZoomInIcon className="size-3.5 text-muted-foreground" />
+      </button>
+      <button
+        onClick={() => zoomOut()}
+        className="p-1.5 hover:bg-accent rounded transition-colors"
+        title="Zoom Out"
+      >
+        <ZoomOutIcon className="size-3.5 text-muted-foreground" />
+      </button>
+      <button
+        onClick={() => reset()}
+        className="p-1.5 hover:bg-accent rounded transition-colors"
+        title="Fit to Screen"
+      >
+        <FullscreenIcon className="size-3.5 text-muted-foreground" />
+      </button>
+    </div>
+  );
+};
+
+// ─── Main exported component ──────────────────────────────────────────────────
 
 const MiniGraphPanel = () => {
   const theme = useSettingsStore.use.theme();
   const miniGraphData = useGraphStore.use.miniGraphData();
 
-  const settings = useMemo(
+  // Build the graphology graph whenever source data changes
+  const graphologyGraph = useMemo(() => {
+    if (!miniGraphData?.entities?.length) return null;
+    return buildGraphologyGraph(miniGraphData);
+  }, [miniGraphData]);
+
+  const sigmaSettings = useMemo(
     () => ({
       allowInvalidContainer: true,
       defaultNodeType: "default",
-      defaultEdgeType: "line",
+      defaultEdgeType: "curvedNoArrow",
       renderEdgeLabels: false,
-
-      // [FIX 3] Giảm cỡ chữ cho cân đối với node nhỏ
-      labelSize: 11,
-      labelColor: {
-        color: theme === "dark" ? labelColorDarkTheme : labelColorLightTheme,
+      edgeProgramClasses: {
+        curvedNoArrow: createEdgeCurveProgram(),
       },
-
       nodeProgramClasses: {
         default: NodeBorderProgram,
       },
-      enableEdgeHoverEvents: false,
-      enableHovering: true,
+      labelGridCellSize: 60,
+      labelRenderedSizeThreshold: 6,
+      enableEdgeEvents: false,
+      labelColor: {
+        color: theme === "dark" ? labelColorDarkTheme : labelColorLightTheme,
+      },
+      labelSize: 11,
     }),
     [theme]
   );
 
-  // Màn hình chờ
-  if (
-    !miniGraphData ||
-    !miniGraphData.entities ||
-    miniGraphData.entities.length === 0
-  ) {
+  // Empty state
+  if (!graphologyGraph) {
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-white shadow-inner border-2 border-emerald-200/70 text-muted-foreground p-5 text-center select-none">
-        <div className="mb-3 p-4 bg-emerald-100/70 dark:bg-emerald-900/40 rounded-full shadow-lg border border-emerald-200">
-          <NetworkIcon className="size-8 text-emerald-600" />
+      <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 text-muted-foreground p-5 text-center select-none">
+        <div className="mb-3 p-4 bg-muted rounded-full shadow border">
+          <NetworkIcon className="size-8 text-muted-foreground/60" />
         </div>
-        <p className="text-sm font-medium">
-          Chọn nút{' '}
-          <span className="font-bold text-emerald-600 bg-emerald-100/80 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full shadow-sm">
-            Show Graph
-          </span>{' '}
-          <br /> để xem ngữ cảnh đồ thị.
-        </p>
+        <p className="text-sm font-medium">Send a RAG query to see the</p>
+        <p className="text-sm font-bold text-primary mt-1">Knowledge Graph Context</p>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full relative border-b border-border bg-card overflow-hidden group">
-      <div className="absolute top-3 left-3 z-10 bg-background/90 px-3 py-1.5 rounded-md text-xs font-semibold backdrop-blur-md border shadow-sm flex items-center gap-2 transition-all group-hover:opacity-100">
-        <span className="text-muted-foreground">Context:</span>
-        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-          {miniGraphData.entities.length} Nodes
+    <div className="h-full w-full relative bg-card overflow-hidden">
+      {/* Node count badge */}
+      <div className="absolute top-3 left-3 z-10 bg-background/90 px-3 py-1.5 rounded-md text-xs font-semibold backdrop-blur-md border shadow-sm flex items-center gap-2">
+        <span className="text-muted-foreground">Nodes:</span>
+        <span className="text-primary font-bold">
+          {miniGraphData!.entities!.length}
         </span>
+        {miniGraphData!.relationships && (
+          <>
+            <span className="text-muted-foreground ml-1">Edges:</span>
+            <span className="text-primary font-bold">
+              {miniGraphData!.relationships.length}
+            </span>
+          </>
+        )}
       </div>
 
-      {/* Key để reset khi số lượng node thay đổi */}
       <SigmaContainer
-        key={`mini-graph-${miniGraphData.entities.length}`}
+        key={`mini-graph-${graphologyGraph.order}-${graphologyGraph.size}`}
         style={{ height: "100%", width: "100%" }}
-        settings={settings}
+        settings={sigmaSettings}
         className="!bg-transparent"
       >
-        <SubGraphLoader />
+        <MiniGraphController graphologyGraph={graphologyGraph} />
+        <MiniZoomBar />
       </SigmaContainer>
     </div>
   );

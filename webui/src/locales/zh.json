@@ -58,6 +58,15 @@
       "chatQueries": "Truy vấn Chat",
       "usedRetrieval": "Sử dụng truy xuất tài liệu",
       "directResponse": "Phản hồi trực tiếp từ LLM"
+    },
+    "retrieval": {
+      "title": "Thông tin truy xuất",
+      "graph": "Đồ thị truy xuất",
+      "chunks": "Chunks truy xuất",
+      "noChunks": "Không có chunks truy xuất",
+      "noChunksHint": "Gửi truy vấn RAG để xem chunks tại đây",
+      "unknownFile": "File không rõ",
+      "clickToExpand": "Nhấn để xem toàn bộ"
     }
   },
   "login": {

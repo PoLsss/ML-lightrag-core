@@ -7,6 +7,7 @@ import { useChatStore, ChatMessage, QueryType } from "@/stores/chat";
 import { useSettingsStore } from "@/stores/settings";
 
 import { queryText, queryTextStream } from "@/api/lightrag";
+import { useGraphStore } from "@/stores/graph";
 import {
   classifyQueryWithLLM,
   buildConversationHistory,
@@ -569,9 +570,10 @@ export default function ChatPanel() {
               console.log("Received streaming context:", contextData);
               if (contextData) {
                 updateMessage(assistantId, {
-                  // @ts-ignore
                   context_data: contextData,
                 });
+                // Push to graph store so MiniGraphPanel can render
+                useGraphStore.getState().setMiniGraphData(contextData);
               }
             },
             (error) => {
@@ -608,9 +610,12 @@ export default function ChatPanel() {
           updateMessage(assistantId, {
             content: fullResponse,
             isThinking: false,
-            // @ts-ignore
             context_data: response.context_data,
           });
+          // Push to graph store so MiniGraphPanel can render
+          if (response.context_data) {
+            useGraphStore.getState().setMiniGraphData(response.context_data);
+          }
         }
 
         const responseTime = Date.now() - startTime;

@@ -56,6 +56,11 @@ export interface ChatMessage extends Message {
   mode?: QueryMode
   queryType?: QueryType // 'retrieval' if used RAG, 'chat' if direct LLM
   isThinking?: boolean // For showing "thinking" state
+  context_data?: {
+    entities?: Array<{ entity_name: string; entity_type?: string; description?: string }>
+    relationships?: Array<{ src_id: string; tgt_id: string; description?: string; weight?: number }>
+    chunks?: any[]
+  }
 }
 
 // Conversation history interface

@@ -1,5 +1,5 @@
 import Graph, { UndirectedGraph } from "graphology";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { errorMessage } from "@/lib/utils";
 import * as Constants from "@/lib/constants";
@@ -259,19 +259,6 @@ const useLightragGraph = () => {
     [rawGraph]
   );
 
-  // Ensure graph instance exists
-  useEffect(() => {
-    if (!sigmaGraph) {
-      const graph = new UndirectedGraph();
-      useGraphStore.getState().setSigmaGraph(graph);
-    }
-  }, [sigmaGraph]);
-
-  // Return instance via useMemo to fix "e2 is not a constructor"
-  const lightragGraph = useMemo(() => {
-    return sigmaGraph || new UndirectedGraph();
-  }, [sigmaGraph]);
-
   // 1. Reset on clear label
   useEffect(() => {
     if (!queryLabel && (rawGraph !== null || sigmaGraph !== null)) {
@@ -471,7 +458,7 @@ const useLightragGraph = () => {
     }
   }, [nodeToPrune, sigmaGraph, rawGraph, t]);
 
-  return { lightragGraph, getNode, getEdge };
+  return { getNode, getEdge };
 };
 
 export default useLightragGraph;

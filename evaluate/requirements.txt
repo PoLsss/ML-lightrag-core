@@ -1,0 +1,10 @@
+# Install with: python -m pip install -r requirements.txt
+
+trulens
+trulens-providers-openai
+openai
+python-dotenv
+requests
+numpy
+pandas
+

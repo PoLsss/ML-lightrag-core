@@ -95,3 +95,11 @@ htmlcov/
 .ruff_cache/
 .agent/
 minio/data/
+.agents/
+default.sqlite
+evaluate/evaluation_results.csv
+evaluate/evaluation_detailed_results.json
+evaluate/evaluation_prompts.json
+evaluate/evaluate_rag_system_100c_final.txt
+skills-lock.json
+evaluate/evaluation_detailed_results.json

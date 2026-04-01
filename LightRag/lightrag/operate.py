@@ -4,6 +4,7 @@ from pathlib import Path
 
 import asyncio
 import json
+import re
 import json_repair
 from typing import Any, AsyncIterator, overload, Literal
 from collections import Counter, defaultdict
@@ -146,6 +147,273 @@ def chunking_by_token_size(
                 }
             )
     return results
+
+
+# ---------------------------------------------------------------------------
+# Table-aware markdown chunking helpers
+# ---------------------------------------------------------------------------
+
+_TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*[-:]+[-| :]*$")
+
+# Maximum tokens a table may contain before it is split into row groups.
+# This is intentionally set to the typical embedding-model input ceiling
+# (8 192 tokens) rather than the general chunk size (default 1 200), so
+# that whole tables remain as a single chunk whenever the embedding model
+# can handle them.
+_TABLE_SINGLE_CHUNK_MAX_TOKENS = 8192
+
+
+def _split_markdown_into_segments(content: str) -> list[dict[str, str]]:
+    """Split *content* into alternating ``"text"`` / ``"table"`` segments.
+
+    A line is classified as a table line when it starts with ``|`` (after
+    optional whitespace) **and** is not inside a fenced code block.
+
+    Returns a list of ``{"type": "text"|"table", "content": ...}`` dicts.
+    """
+    lines = content.split("\n")
+    segments: list[dict[str, str]] = []
+    current_lines: list[str] = []
+    current_type: str | None = None
+    in_code_block = False
+    code_fence_marker: str | None = None
+
+    for line in lines:
+        stripped = line.strip()
+
+        # ── fenced code block handling ──
+        if in_code_block:
+            if code_fence_marker and stripped.startswith(code_fence_marker):
+                in_code_block = False
+                code_fence_marker = None
+            line_type = "text"
+        elif stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code_block = True
+            code_fence_marker = stripped[:3]
+            line_type = "text"
+        elif stripped.startswith("|"):
+            line_type = "table"
+        else:
+            line_type = "text"
+
+        # ── flush on type change ──
+        if line_type != current_type and current_lines:
+            segments.append(
+                {"type": current_type, "content": "\n".join(current_lines)}  # type: ignore[arg-type]
+            )
+            current_lines = []
+
+        current_type = line_type
+        current_lines.append(line)
+
+    # flush remaining
+    if current_lines and current_type is not None:
+        segments.append({"type": current_type, "content": "\n".join(current_lines)})
+
+    return segments
+
+
+def _is_page_break_gap(content: str) -> bool:
+    """Return True when *content* contains only blank lines and/or ``---`` rules.
+
+    Such a segment is treated as a page-break artefact sitting between two
+    table fragments rather than real content that separates two distinct
+    tables.
+    """
+    for line in content.split("\n"):
+        s = line.strip()
+        if s and s != "---":
+            return False
+    return True
+
+
+def _merge_table_fragments(
+    segments: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Merge table segments that are separated only by page-break gaps.
+
+    When a PDF-to-Markdown (or similar) tool splits a multi-page table it
+    often inserts a blank line or a lone ``---`` between the last row of
+    page N and the first row of page N+1.  The segmenter in
+    ``_split_markdown_into_segments`` therefore produces two separate
+    ``"table"`` segments, where the second one lacks the original header.
+
+    This function stitches those fragments back into one segment.  If the
+    continuation fragment starts with the same header row(s) as the
+    accumulated table (some tools reprint the header on every page), those
+    duplicate lines are stripped before appending.
+    """
+    merged: list[dict[str, str]] = []
+    i = 0
+
+    while i < len(segments):
+        seg = segments[i]
+
+        if seg["type"] != "table":
+            merged.append(seg)
+            i += 1
+            continue
+
+        # Collect non-empty lines belonging to this table block
+        table_lines = [l for l in seg["content"].split("\n") if l.strip()]
+        j = i + 1
+
+        while j < len(segments):
+            # Pattern: <page-break gap> followed immediately by another table
+            if (
+                segments[j]["type"] == "text"
+                and _is_page_break_gap(segments[j]["content"])
+                and j + 1 < len(segments)
+                and segments[j + 1]["type"] == "table"
+            ):
+                j += 1  # skip the gap segment
+                next_lines = [
+                    l for l in segments[j]["content"].split("\n") if l.strip()
+                ]
+
+                # Strip repeated header rows if the tool reprinted them
+                if len(table_lines) >= 2 and next_lines[:2] == table_lines[:2]:
+                    next_lines = next_lines[2:]
+                elif next_lines and next_lines[0] == table_lines[0]:
+                    next_lines = next_lines[1:]
+
+                table_lines.extend(next_lines)
+                j += 1
+            else:
+                break
+
+        merged.append({"type": "table", "content": "\n".join(table_lines)})
+        i = j
+
+    return merged
+
+
+def _chunk_table(
+    tokenizer: Tokenizer,
+    table_content: str,
+    max_token_size: int,
+    overlap_token_size: int,  # kept for signature consistency; unused for tables
+    table_max_tokens: int = _TABLE_SINGLE_CHUNK_MAX_TOKENS,
+) -> list[str]:
+    """Return one or more text chunks for a single Markdown table.
+
+    The whole table is kept as a **single chunk** unless it exceeds
+    *table_max_tokens* (default ``_TABLE_SINGLE_CHUNK_MAX_TOKENS`` = 8 192,
+    the typical embedding-model input ceiling).  Only then is the table
+    split into row groups, each prefixed with the original header.
+    ``max_token_size`` controls the row-group size when splitting is
+    unavoidable.
+    """
+    # Collect non-empty lines
+    lines = [l for l in table_content.split("\n") if l.strip()]
+    if not lines:
+        return []
+
+    full_text = "\n".join(lines)
+    full_tokens = len(tokenizer.encode(full_text))
+
+    # Fast path: table fits within the embedding-model token ceiling → one chunk
+    if full_tokens <= table_max_tokens:
+        return [full_text]
+
+    # ── identify header ──
+    # Standard markdown: first row is header, second is separator (e.g. |---|---|)
+    if len(lines) >= 2 and _TABLE_SEPARATOR_RE.match(lines[1].strip()):
+        header_lines = lines[:2]
+        data_start = 2
+    else:
+        header_lines = lines[:1]
+        data_start = 1
+
+    header_text = "\n".join(header_lines)
+    header_tokens = len(tokenizer.encode(header_text))
+
+    data_lines = lines[data_start:]
+    if not data_lines:
+        return [full_text]
+
+    chunks: list[str] = []
+    current_rows: list[str] = []
+    current_tokens = header_tokens  # account for the header we will prepend
+
+    for row in data_lines:
+        row_tokens = len(tokenizer.encode(row))
+
+        if current_rows and (current_tokens + 1 + row_tokens) > max_token_size:
+            # flush current group
+            chunks.append(header_text + "\n" + "\n".join(current_rows))
+            current_rows = []
+            current_tokens = header_tokens
+
+        current_rows.append(row)
+        current_tokens += row_tokens + 1  # +1 for the newline
+
+    # flush remaining rows
+    if current_rows:
+        chunks.append(header_text + "\n" + "\n".join(current_rows))
+
+    return chunks
+
+
+def chunking_by_token_size_with_table_awareness(
+    tokenizer: Tokenizer,
+    content: str,
+    split_by_character: str | None = None,
+    split_by_character_only: bool = False,
+    overlap_token_size: int = 128,
+    max_token_size: int = 1024,
+) -> list[dict[str, Any]]:
+    """Table-aware markdown chunking.
+
+    1. Segment the document into alternating *text* / *table* blocks.
+    2. Tables are kept as single chunks when possible; oversized tables are
+       split by rows with the header preserved in every sub-chunk.
+    3. Non-table text is chunked with the existing sliding-window algorithm
+       (``chunking_by_token_size``).
+
+    The signature is identical to ``chunking_by_token_size`` so this
+    function is a drop-in replacement.
+    """
+    segments = _merge_table_fragments(_split_markdown_into_segments(content))
+
+    all_chunks: list[dict[str, Any]] = []
+    chunk_order_index = 0
+
+    for segment in segments:
+        seg_content = segment["content"]
+        if not seg_content.strip():
+            continue
+
+        if segment["type"] == "table":
+            table_chunks = _chunk_table(
+                tokenizer, seg_content, max_token_size, overlap_token_size
+            )
+            for text in table_chunks:
+                stripped = text.strip()
+                all_chunks.append(
+                    {
+                        "tokens": len(tokenizer.encode(stripped)),
+                        "content": stripped,
+                        "chunk_order_index": chunk_order_index,
+                    }
+                )
+                chunk_order_index += 1
+        else:
+            # delegate non-table text to the existing algorithm
+            sub_chunks = chunking_by_token_size(
+                tokenizer,
+                seg_content,
+                split_by_character,
+                split_by_character_only,
+                overlap_token_size,
+                max_token_size,
+            )
+            for chunk in sub_chunks:
+                chunk["chunk_order_index"] = chunk_order_index
+                all_chunks.append(chunk)
+                chunk_order_index += 1
+
+    return all_chunks
 
 
 async def _handle_entity_relation_summary(
@@ -4070,9 +4338,7 @@ async def _filter_by_accessible_docs(
     for entity in search_result.get("final_entities", []):
         source_id = entity.get("source_id", "")
         if source_id:
-            entity_chunks = split_string_by_multi_markers(
-                source_id, [GRAPH_FIELD_SEP]
-            )
+            entity_chunks = split_string_by_multi_markers(source_id, [GRAPH_FIELD_SEP])
             if any(c in accessible_chunk_ids for c in entity_chunks):
                 filtered_entities.append(entity)
         # Entities without source_id are generic — exclude for safety
@@ -4082,9 +4348,7 @@ async def _filter_by_accessible_docs(
     for relation in search_result.get("final_relations", []):
         source_id = relation.get("source_id", "")
         if source_id:
-            rel_chunks = split_string_by_multi_markers(
-                source_id, [GRAPH_FIELD_SEP]
-            )
+            rel_chunks = split_string_by_multi_markers(source_id, [GRAPH_FIELD_SEP])
             if any(c in accessible_chunk_ids for c in rel_chunks):
                 filtered_relations.append(relation)
 
@@ -4174,10 +4438,7 @@ async def _build_query_context(
             text_chunks_db,
         )
         # Re-check after filtering — may have removed everything
-        if (
-            not search_result["final_entities"]
-            and not search_result["final_relations"]
-        ):
+        if not search_result["final_entities"] and not search_result["final_relations"]:
             if query_param.mode != "mix":
                 return None
             else:
@@ -4217,8 +4478,7 @@ async def _build_query_context(
                     accessible_chunk_set.add(cid)
             before_count = len(merged_chunks)
             merged_chunks = [
-                c for c in merged_chunks
-                if c.get("chunk_id") in accessible_chunk_set
+                c for c in merged_chunks if c.get("chunk_id") in accessible_chunk_set
             ]
             logger.info(
                 f"[Scope filter - merged chunks] {before_count} -> {len(merged_chunks)}"
@@ -4926,12 +5186,9 @@ async def naive_query(
     if query_param.accessible_doc_ids is not None:
         original_count = len(chunks)
         chunks = [
-            c for c in chunks
-            if c.get("full_doc_id") in query_param.accessible_doc_ids
+            c for c in chunks if c.get("full_doc_id") in query_param.accessible_doc_ids
         ]
-        logger.info(
-            f"[Scope filter - naive] Chunks: {original_count} -> {len(chunks)}"
-        )
+        logger.info(f"[Scope filter - naive] Chunks: {original_count} -> {len(chunks)}")
         if not chunks:
             logger.info(
                 "[naive_query] No accessible chunks after scope filtering; returning no-result."

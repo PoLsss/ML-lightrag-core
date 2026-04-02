@@ -169,7 +169,12 @@ def _split_markdown_into_segments(content: str) -> list[dict[str, str]]:
     A line is classified as a table line when it starts with ``|`` (after
     optional whitespace) **and** is not inside a fenced code block.
 
-    Returns a list of ``{"type": "text"|"table", "content": ...}`` dicts.
+    Returns a list of ``{"type": "text"|"table", "content": ..., "caption":
+    str|None}`` dicts.  For ``"table"`` segments the ``"caption"`` field
+    contains the text of the nearest preceding Markdown heading (``# … ######``
+    prefix stripped of ``#`` symbols) so that downstream chunkers can prepend
+    the table name to every table chunk.  ``"text"`` segments always have
+    ``"caption": None``.
     """
     lines = content.split("\n")
     segments: list[dict[str, str]] = []
@@ -177,6 +182,7 @@ def _split_markdown_into_segments(content: str) -> list[dict[str, str]]:
     current_type: str | None = None
     in_code_block = False
     code_fence_marker: str | None = None
+    last_heading: str | None = None  # most recent Markdown heading seen
 
     for line in lines:
         stripped = line.strip()
@@ -196,10 +202,22 @@ def _split_markdown_into_segments(content: str) -> list[dict[str, str]]:
         else:
             line_type = "text"
 
+        # ── track the most recent Markdown heading (outside code blocks) ──
+        if (
+            line_type == "text"
+            and not in_code_block
+            and re.match(r"^#{1,6}\s+", stripped)
+        ):
+            last_heading = stripped
+
         # ── flush on type change ──
         if line_type != current_type and current_lines:
             segments.append(
-                {"type": current_type, "content": "\n".join(current_lines)}  # type: ignore[arg-type]
+                {  # type: ignore[arg-type]
+                    "type": current_type,
+                    "content": "\n".join(current_lines),
+                    "caption": last_heading if current_type == "table" else None,
+                }
             )
             current_lines = []
 
@@ -208,7 +226,13 @@ def _split_markdown_into_segments(content: str) -> list[dict[str, str]]:
 
     # flush remaining
     if current_lines and current_type is not None:
-        segments.append({"type": current_type, "content": "\n".join(current_lines)})
+        segments.append(
+            {
+                "type": current_type,
+                "content": "\n".join(current_lines),
+                "caption": last_heading if current_type == "table" else None,
+            }
+        )
 
     return segments
 
@@ -282,7 +306,13 @@ def _merge_table_fragments(
             else:
                 break
 
-        merged.append({"type": "table", "content": "\n".join(table_lines)})
+        merged.append(
+            {
+                "type": "table",
+                "content": "\n".join(table_lines),
+                "caption": seg.get("caption"),  # first fragment owns the caption
+            }
+        )
         i = j
 
     return merged
@@ -355,6 +385,19 @@ def _chunk_table(
     return chunks
 
 
+def _is_heading_only_chunk(content: str) -> bool:
+    """Return True when every non-blank line in *content* is a Markdown heading.
+
+    A heading line matches ``^#{1,6}\\s+\\S``.  At least one such line must
+    exist for the chunk to be considered heading-only (empty content → False).
+    """
+    non_blank = [line for line in content.splitlines() if line.strip()]
+    if not non_blank:
+        return False
+    heading_re = re.compile(r"^#{1,6}\s+\S")
+    return all(heading_re.match(line) for line in non_blank)
+
+
 def chunking_by_token_size_with_table_awareness(
     tokenizer: Tokenizer,
     content: str,
@@ -362,6 +405,7 @@ def chunking_by_token_size_with_table_awareness(
     split_by_character_only: bool = False,
     overlap_token_size: int = 128,
     max_token_size: int = 1024,
+    table_max_tokens: int = _TABLE_SINGLE_CHUNK_MAX_TOKENS,
 ) -> list[dict[str, Any]]:
     """Table-aware markdown chunking.
 
@@ -372,7 +416,9 @@ def chunking_by_token_size_with_table_awareness(
        (``chunking_by_token_size``).
 
     The signature is identical to ``chunking_by_token_size`` so this
-    function is a drop-in replacement.
+    function is a drop-in replacement.  The optional *table_max_tokens*
+    argument (default ``_TABLE_SINGLE_CHUNK_MAX_TOKENS``) controls the
+    token ceiling below which the whole table is kept as one chunk.
     """
     segments = _merge_table_fragments(_split_markdown_into_segments(content))
 
@@ -385,11 +431,24 @@ def chunking_by_token_size_with_table_awareness(
             continue
 
         if segment["type"] == "table":
+            # Extract the caption (nearest preceding Markdown heading) and
+            # strip the leading '#' symbols so only the title text remains.
+            raw_caption: str | None = segment.get("caption")
+            caption_text: str | None = None
+            if raw_caption:
+                caption_text = re.sub(r"^#{1,6}\s+", "", raw_caption).strip() or None
+
             table_chunks = _chunk_table(
-                tokenizer, seg_content, max_token_size, overlap_token_size
+                tokenizer,
+                seg_content,
+                max_token_size,
+                overlap_token_size,
+                table_max_tokens=table_max_tokens,
             )
             for text in table_chunks:
                 stripped = text.strip()
+                if caption_text:
+                    stripped = f"**{caption_text}**\n{stripped}"
                 all_chunks.append(
                     {
                         "tokens": len(tokenizer.encode(stripped)),
@@ -413,7 +472,47 @@ def chunking_by_token_size_with_table_awareness(
                 all_chunks.append(chunk)
                 chunk_order_index += 1
 
-    return all_chunks
+    # ------------------------------------------------------------------
+    # Post-processing pass: merge orphan heading-only chunks forward
+    # ------------------------------------------------------------------
+    # A chunk is "heading-only" when every non-blank line is a Markdown
+    # heading (e.g. produced by a standalone heading paragraph).  Such
+    # chunks carry no body content and should be merged into the next
+    # chunk rather than emitted on their own.
+    #
+    # Special case: if the next chunk already starts with the bold caption
+    # that the table-caption mechanism injected (e.g. **Title**\n|…),
+    # the orphan heading is dropped silently to avoid duplication.
+    # If there is no successor (trailing heading at end of document), the
+    # chunk is kept as-is.
+
+    final_chunks: list[dict[str, Any]] = []
+    i = 0
+    while i < len(all_chunks):
+        chunk = all_chunks[i]
+        if _is_heading_only_chunk(chunk["content"]) and i + 1 < len(all_chunks):
+            heading_text = re.sub(r"^#{1,6}\s+", "", chunk["content"].strip()).strip()
+            next_chunk = all_chunks[i + 1]
+            bold_prefix = f"**{heading_text}**"
+            if next_chunk["content"].startswith(bold_prefix):
+                # Caption already injected by table-awareness – drop the orphan
+                pass
+            else:
+                # Prepend the heading line(s) to the next chunk's content
+                merged_content = chunk["content"].strip() + "\n" + next_chunk["content"]
+                next_chunk["content"] = merged_content
+                next_chunk["tokens"] = len(tokenizer.encode(merged_content))
+            # Either way, skip appending the current orphan chunk
+            i += 1
+            continue
+        final_chunks.append(chunk)
+        i += 1
+
+    # Re-index chunk_order_index sequentially from 0
+    for new_index, chunk in enumerate(final_chunks):
+        chunk["chunk_order_index"] = new_index
+
+    return final_chunks
 
 
 async def _handle_entity_relation_summary(

@@ -17,14 +17,14 @@ import { cn } from '@/lib/utils'
 
 function ChunkCard({ chunk, onClick }: { chunk: ChunkData; onClick: () => void }) {
   const fileName = chunk.file_name || chunk.file_path?.split('/').pop() || 'Unknown'
-  const preview = chunk.content?.slice(0, 200) || ''
+  const preview = chunk.content?.slice(0, 150) || ''
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left rounded-lg border border-border bg-card p-3 hover:bg-accent/50',
-        'transition-colors cursor-pointer group'
+        'w-full text-left rounded-lg border border-border bg-card p-3 hover:bg-accent hover:border-accent-foreground/20',
+        'transition-all cursor-pointer group hover:shadow-md'
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -49,12 +49,12 @@ function ChunkCard({ chunk, onClick }: { chunk: ChunkData; onClick: () => void }
           </div>
 
           {/* Content preview */}
-          <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
             {preview}{preview.length < (chunk.content?.length || 0) ? '...' : ''}
           </p>
         </div>
 
-        <ChevronRightIcon className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
+        <ChevronRightIcon className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
       </div>
     </button>
   )

@@ -83,6 +83,7 @@ from lightrag.base import (
 from lightrag.namespace import NameSpace
 from lightrag.operate import (
     chunking_by_token_size,
+    chunking_by_token_size_with_table_awareness,
     extract_entities,
     merge_nodes_and_edges,
     kg_query,
@@ -244,7 +245,7 @@ class LightRAG:
             int,
         ],
         List[Dict[str, Any]],
-    ] = field(default_factory=lambda: chunking_by_token_size)
+    ] = field(default_factory=lambda: chunking_by_token_size_with_table_awareness)
     """
     Custom chunking function for splitting text into chunks before processing.
 
@@ -261,7 +262,10 @@ class LightRAG:
         - `tokens`: The number of tokens in the chunk.
         - `content`: The text content of the chunk.
 
-    Defaults to `chunking_by_token_size` if not specified.
+    Defaults to `chunking_by_token_size_with_table_awareness` which keeps
+    Markdown tables as single chunks (splitting by rows with preserved headers
+    only when a table exceeds the token limit).  Set to
+    ``chunking_by_token_size`` to restore the previous behaviour.
     """
 
     # Embedding
@@ -2644,15 +2648,18 @@ class LightRAG:
         # Create a TokenTracker to track token usage for this query
         from lightrag.utils import TokenTracker
         from functools import wraps
+
         token_tracker = TokenTracker()
 
         # Wrap the LLM model function to inject token_tracker
         original_llm_func = global_config.get("llm_model_func")
         if original_llm_func:
+
             @wraps(original_llm_func)
             async def tracked_llm_func(*args, **kwargs):
-                kwargs['token_tracker'] = token_tracker
+                kwargs["token_tracker"] = token_tracker
                 return await original_llm_func(*args, **kwargs)
+
             global_config["llm_model_func"] = tracked_llm_func
 
         try:

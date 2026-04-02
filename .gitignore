@@ -103,3 +103,6 @@ evaluate/evaluation_prompts.json
 evaluate/evaluate_rag_system_100c_final.txt
 skills-lock.json
 evaluate/evaluation_detailed_results.json
+
+test_gdp_live.py
+Country GDP Billion USD.txt

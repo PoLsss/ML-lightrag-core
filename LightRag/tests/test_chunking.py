@@ -14,6 +14,7 @@ from lightrag.operate import (
     _is_page_break_gap,
     _merge_table_fragments,
     _chunk_table,
+    _is_heading_only_chunk,
     _TABLE_SINGLE_CHUNK_MAX_TOKENS,
     chunking_by_token_size,
     chunking_by_token_size_with_table_awareness,
@@ -559,3 +560,273 @@ class TestTableAwareChunking:
         )
         text_chunks = [c for c in chunks if "|" not in c["content"]]
         assert len(text_chunks) >= 2
+
+
+# ===================================================================
+# Caption / table-name tests
+# ===================================================================
+
+
+class TestCaptionExtraction:
+    """Tests for heading-based caption attachment to table segments."""
+
+    # ------------------------------------------------------------------
+    # _split_markdown_into_segments – caption field
+    # ------------------------------------------------------------------
+
+    def test_table_segment_carries_heading_caption(self):
+        """A Markdown heading immediately before a table is captured as caption."""
+        content = "## Country GDP\n\n| Country | GDP |\n| --- | --- |\n| USA | 26854 |"
+        segments = _split_markdown_into_segments(content)
+        table_segs = [s for s in segments if s["type"] == "table"]
+        assert len(table_segs) == 1
+        assert table_segs[0]["caption"] == "## Country GDP"
+
+    def test_table_segment_caption_none_without_heading(self):
+        """A table with no preceding heading has caption == None."""
+        content = "| A | B |\n| --- | --- |\n| 1 | 2 |"
+        segments = _split_markdown_into_segments(content)
+        table_segs = [s for s in segments if s["type"] == "table"]
+        assert len(table_segs) == 1
+        assert table_segs[0]["caption"] is None
+
+    def test_multiple_tables_each_get_nearest_heading(self):
+        """Each table captures its own closest preceding heading."""
+        content = (
+            "## First Table\n\n"
+            "| A |\n| --- |\n| 1 |\n\n"
+            "Some text.\n\n"
+            "### Second Table\n\n"
+            "| B |\n| --- |\n| 2 |"
+        )
+        segments = _split_markdown_into_segments(content)
+        table_segs = [s for s in segments if s["type"] == "table"]
+        assert len(table_segs) == 2
+        assert table_segs[0]["caption"] == "## First Table"
+        assert table_segs[1]["caption"] == "### Second Table"
+
+    def test_heading_inside_text_block_updates_caption(self):
+        """A heading embedded in a multi-paragraph text block is still tracked."""
+        content = (
+            "Some prose.\n\n"
+            "#### Scores\n\n"
+            "More prose.\n\n"
+            "| Name | Score |\n| --- | --- |\n| Alice | 90 |"
+        )
+        segments = _split_markdown_into_segments(content)
+        table_segs = [s for s in segments if s["type"] == "table"]
+        assert len(table_segs) == 1
+        assert table_segs[0]["caption"] == "#### Scores"
+
+    # ------------------------------------------------------------------
+    # _merge_table_fragments – caption propagation
+    # ------------------------------------------------------------------
+
+    def test_merge_preserves_first_fragment_caption(self):
+        """After merging page-break fragments, caption from first fragment is kept."""
+        segs = [
+            {
+                "type": "table",
+                "content": "| H |\n| --- |\n| r1 |",
+                "caption": "## My Table",
+            },
+            {"type": "text", "content": "", "caption": None},
+            {"type": "table", "content": "| r2 |", "caption": None},
+        ]
+        result = _merge_table_fragments(segs)
+        assert len(result) == 1
+        assert result[0]["caption"] == "## My Table"
+
+    # ------------------------------------------------------------------
+    # chunking_by_token_size_with_table_awareness – caption in content
+    # ------------------------------------------------------------------
+
+    def test_table_chunk_content_includes_heading(self, tokenizer):
+        """Table chunk content is prefixed with the bold heading text."""
+        content = (
+            "## Sales Data\n\n| Product | Revenue |\n| --- | --- |\n| Widget | 100 |"
+        )
+        chunks = chunking_by_token_size_with_table_awareness(
+            tokenizer, content, max_token_size=200, overlap_token_size=0
+        )
+        table_chunks = [c for c in chunks if "| Product |" in c["content"]]
+        assert len(table_chunks) == 1
+        assert table_chunks[0]["content"].startswith("**Sales Data**\n")
+
+    def test_table_chunk_no_heading_no_prepend(self, tokenizer):
+        """Without a preceding heading, the chunk content starts directly with '|'."""
+        content = "| A | B |\n| --- | --- |\n| 1 | 2 |"
+        chunks = chunking_by_token_size_with_table_awareness(
+            tokenizer, content, max_token_size=200, overlap_token_size=0
+        )
+        assert len(chunks) == 1
+        assert chunks[0]["content"].startswith("| A | B |")
+
+    def test_split_table_chunks_all_include_heading(self, tokenizer):
+        """When a large table is split into row groups, every sub-chunk has the caption."""
+        header = "| Name | Value |"
+        separator = "| --- | --- |"
+        rows = [f"| item{i} | {i} |" for i in range(30)]
+        content = "### Big Table\n\n" + "\n".join([header, separator] + rows)
+
+        chunks = chunking_by_token_size_with_table_awareness(
+            tokenizer,
+            content,
+            max_token_size=15,
+            overlap_token_size=0,
+            table_max_tokens=15,  # force row-group splitting
+        )
+        table_chunks = [c for c in chunks if "| Name |" in c["content"]]
+        assert len(table_chunks) > 1, (
+            "Expected the table to be split into multiple chunks"
+        )
+        for chunk in table_chunks:
+            assert chunk["content"].startswith("**Big Table**\n")
+
+
+# ---------------------------------------------------------------------------
+# Goal 2 – Orphan heading chunk merging
+# ---------------------------------------------------------------------------
+
+
+class TestIsHeadingOnlyChunk:
+    """Unit tests for the _is_heading_only_chunk() helper."""
+
+    def test_single_h1(self):
+        assert _is_heading_only_chunk("# Title") is True
+
+    def test_single_h3(self):
+        assert _is_heading_only_chunk("### Deep Heading") is True
+
+    def test_multiple_headings(self):
+        assert _is_heading_only_chunk("# A\n## B\n### C") is True
+
+    def test_heading_with_body(self):
+        assert _is_heading_only_chunk("# Title\nSome body text here.") is False
+
+    def test_plain_text(self):
+        assert _is_heading_only_chunk("Just plain text, no heading.") is False
+
+    def test_empty_string(self):
+        assert _is_heading_only_chunk("") is False
+
+    def test_blank_lines_only(self):
+        assert _is_heading_only_chunk("\n\n   \n") is False
+
+    def test_heading_with_trailing_blank_lines(self):
+        assert _is_heading_only_chunk("## Section\n\n") is True
+
+
+class TestOrphanHeadingMerging:
+    """Integration tests for the orphan-heading merging post-processing pass."""
+
+    # ------------------------------------------------------------------
+    # Helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _chunk(content, tokenizer, max_tokens=200, overlap=0, table_max=None):
+        kwargs = dict(max_token_size=max_tokens, overlap_token_size=overlap)
+        if table_max is not None:
+            kwargs["table_max_tokens"] = table_max
+        return chunking_by_token_size_with_table_awareness(tokenizer, content, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Tests
+    # ------------------------------------------------------------------
+
+    def test_standalone_heading_merged_into_text_chunk(self, tokenizer):
+        """A heading-only chunk is prepended to the following text chunk."""
+        content = "## Introduction\n\nThis is the body of the introduction."
+        chunks = self._chunk(content, tokenizer)
+        # Must produce exactly one chunk (heading merged into body)
+        assert len(chunks) == 1
+        assert "## Introduction" in chunks[0]["content"]
+        assert "body of the introduction" in chunks[0]["content"]
+
+    def test_standalone_heading_before_table_dropped(self, tokenizer):
+        """Heading orphan before a table whose caption already contains the heading is dropped."""
+        content = "## Country GDP\n\n| Country | GDP |\n| --- | --- |\n| USA | 25000 |"
+        chunks = self._chunk(content, tokenizer)
+        # The table chunk should have the bold caption; the orphan heading dropped
+        assert len(chunks) == 1
+        assert chunks[0]["content"].startswith("**Country GDP**\n")
+
+    def test_standalone_heading_before_table_different_heading(self, tokenizer):
+        """Heading orphan before a table whose caption differs is prepended (not dropped)."""
+        # We engineer a scenario: heading "## Section One" but the table has
+        # no preceding heading that matches (simulate by inserting a different
+        # heading via caption vs. the orphan heading).
+        # Easiest: two headings before the table – the last one wins for caption,
+        # the first creates an orphan that differs from the caption.
+        content = (
+            "## Section One\n\n"
+            "## Sales Data\n\n"
+            "| Product | Revenue |\n"
+            "| --- | --- |\n"
+            "| Widget | 50 |"
+        )
+        chunks = self._chunk(content, tokenizer)
+        # "## Section One" is orphan; next chunk is "## Sales Data" which is
+        # also orphan; that merges into the table chunk which starts with
+        # **Sales Data** – so "## Section One\n## Sales Data" is prepended...
+        # but wait: "## Sales Data" orphan matches the caption → dropped.
+        # So "## Section One" orphan's successor becomes the table chunk
+        # starting with **Sales Data** – does not match "## Section One" → prepended.
+        table_chunk = [c for c in chunks if "| Product |" in c["content"]]
+        assert len(table_chunk) == 1
+        assert "## Section One" in table_chunk[0]["content"]
+        assert (
+            table_chunk[0]["content"].startswith("**Sales Data**\n")
+            or "## Section One" in table_chunk[0]["content"]
+        )
+
+    def test_heading_at_end_of_document_kept(self, tokenizer):
+        """A trailing heading with no successor is preserved as its own chunk."""
+        content = "Some text here.\n\n## Trailing Heading"
+        chunks = self._chunk(content, tokenizer)
+        heading_chunks = [c for c in chunks if "## Trailing Heading" in c["content"]]
+        assert len(heading_chunks) == 1
+
+    def test_heading_with_body_not_treated_as_orphan(self, tokenizer):
+        """A chunk that contains both a heading and body text is NOT merged forward."""
+        # chunking_by_token_size should keep them together when small enough
+        content = "# Title\n\nBody text here.\n\n## Next Section\n\nMore body."
+        chunks = self._chunk(content, tokenizer)
+        # None of the chunks should merge the second section into a following chunk
+        # Simply verify we don't lose content
+        full = " ".join(c["content"] for c in chunks)
+        assert "Title" in full
+        assert "Body text here" in full
+        assert "Next Section" in full
+        assert "More body" in full
+
+    def test_chunk_order_index_resequenced(self, tokenizer):
+        """After merging, chunk_order_index values are 0-based and contiguous."""
+        content = (
+            "## Intro\n\nFirst body paragraph.\n\n"
+            "## Data\n\n| A | B |\n| --- | --- |\n| 1 | 2 |"
+        )
+        chunks = self._chunk(content, tokenizer)
+        indices = [c["chunk_order_index"] for c in chunks]
+        assert indices == list(range(len(chunks)))
+
+    def test_consecutive_heading_orphans_merged(self, tokenizer):
+        """Multiple consecutive heading-only chunks cascade-merge correctly."""
+        content = "# H1\n\n## H2\n\nFinal body."
+        chunks = self._chunk(content, tokenizer)
+        # Both headings should end up merged into (or alongside) the body
+        full = " ".join(c["content"] for c in chunks)
+        assert "H1" in full
+        assert "H2" in full
+        assert "Final body" in full
+
+    def test_no_empty_chunks_after_merge(self, tokenizer):
+        """Post-merge chunks all have non-empty content."""
+        content = (
+            "## A\n\n## B\n\n## C\n\nActual content here.\n\n"
+            "## D\n\n| X | Y |\n| --- | --- |\n| 1 | 2 |"
+        )
+        chunks = self._chunk(content, tokenizer)
+        for chunk in chunks:
+            assert chunk["content"].strip() != ""

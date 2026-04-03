@@ -1,6 +1,7 @@
 """
 Configuration loaded once at import time from evaluate/.env.
 """
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -18,9 +19,15 @@ LIGHTRAG_PASSWORD: str = os.getenv("LIGHTRAG_PASSWORD", "12345678")
 TRULENS_PORT: int = int(os.getenv("TRULENS_PORT", "2602"))
 
 RETRIEVAL_MODES: list[str] = ["local", "global", "hybrid", "mix", "naive"]
-DEFAULT_TOP_K: int = 10
+DEFAULT_TOP_K: int = 5
+MAX_ENTITIES: int = 5
+MAX_RELATIONSHIPS: int = 5
 REQUEST_TIMEOUT: int = 120
 MAX_RETRIES: int = 3
+
+# Groundedness v2 — OpenAI SDK direct call
+GROUNDEDNESS_MODEL: str = os.getenv("GROUNDEDNESS_MODEL", "gpt-4o-mini")
+GROUNDEDNESS_TEMPERATURE: float = 0.0
 
 _EVAL_DIR = Path(__file__).parent
 QUESTIONS_FILE = _EVAL_DIR / "evaluate_rag_system_100c_final.txt"

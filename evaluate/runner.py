@@ -21,6 +21,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from trulens.core import Metric, Selector
+
 from config import (
     OPENAI_MODEL,
     PROMPTS_OUTPUT_FILE,
@@ -31,7 +33,7 @@ from evaluator import RAGPipeline
 from metrics import (
     compute_answer_relevance,
     compute_context_relevance,
-    compute_groundedness,
+    compute_groundedness_v2,
     create_provider,
     validate_provider,
 )
@@ -44,43 +46,39 @@ METRIC_NAMES: tuple[str, str, str] = (
 )
 
 
-def _build_dashboard_metrics(provider: object) -> list[object]:
-    """Create TruLens metrics so RAG Triad appears in dashboard UI."""
+def _gr_for_trulens(context: object, answer: str) -> "tuple[float, dict] | float":
+    """TruLens-compatible Groundedness wrapper.
+
+    Defined at **module level** (not as a closure inside
+    ``_build_dashboard_metrics``) so TruLens's evaluator thread can locate
+    and call it by its fully-qualified name ``runner._gr_for_trulens``.
+    Closure / nested functions cannot be reliably serialised or imported by
+    background threads and will silently produce no feedback records.
+
+    Returns a ``(score, meta)`` tuple where ``meta["reasons"]`` is a list of
+    per-claim dicts expected by TruLens's ``expand_groundedness_df``:
+    ``[{"criteria": ..., "supporting_evidence": ..., "score": ...}]``.
+    This allows the TruLens Web UI to render the Groundedness detail panel
+    instead of showing "No metric details found."
+
+    Falls back to ``(0.0, {})`` on any error so the evaluator thread never
+    crashes.
+    """
     try:
-        from trulens.core import Metric, Selector
-    except ImportError:
-        from trulens.core import Feedback as Metric, Selector
-
-    from trulens.otel.semconv.trace import SpanAttributes
-
-    generation_output = Selector(
-        span_type=SpanAttributes.SpanType.GENERATION,
-        span_attribute=SpanAttributes.CALL.RETURN,
-        match_only_if_no_ancestor_matched=True,
-        ignore_none_values=True,
-    )
-
-    return [
-        Metric(implementation=provider.context_relevance, name="Context Relevance")
-        .on_input(arg="question")
-        .on_context(arg="context", collect_list=False)
-        .aggregate(np.mean),
-        Metric(implementation=provider.relevance, name="Answer Relevance").on(
-            {
-                "prompt": Selector.select_record_input(),
-                "response": generation_output,
-            }
-        ),
-        Metric(
-            implementation=provider.groundedness_measure_with_cot_reasons,
-            name="Groundedness",
-        ).on(
-            {
-                "source": Selector.select_context(collect_list=True),
-                "statement": generation_output,
-            }
-        ),
-    ]
+        if isinstance(context, list):
+            chunks: list[str] = [str(c) for c in context if c is not None]
+        elif context is not None:
+            chunks = [str(context)]
+        else:
+            chunks = []
+        if not answer or not chunks:
+            return 0.0, {}
+        score, reasons = compute_groundedness_v2(
+            answer=answer, chunks=chunks, return_reasons=True
+        )
+        return score, {"reasons": reasons}
+    except Exception:
+        return 0.0, {}
 
 
 # Question loading
@@ -156,7 +154,8 @@ def _evaluate_one(
     }
 
     try:
-        chunks, answer = pipeline.query(question)
+        answer = pipeline.query(question)
+        chunks, _, entities, relationships = pipeline._last_query_result
 
         result["answer"] = answer
         result["context_count"] = len(chunks)
@@ -178,7 +177,12 @@ def _evaluate_one(
                 result["context_relevance"] = compute_context_relevance(
                     provider, question, chunks
                 )
-                result["groundedness"] = compute_groundedness(provider, answer, chunks)
+                result["groundedness"] = compute_groundedness_v2(
+                    answer=answer,
+                    chunks=chunks,
+                    entities=entities,
+                    relationships=relationships,
+                )
 
             cr = result["context_relevance"]
             ar = result["answer_relevance"]
@@ -243,9 +247,6 @@ def run_evaluation(
     validate_provider(provider)
     print(f"[INFO] Provider ready (model: {OPENAI_MODEL})")
 
-    dashboard_metrics = _build_dashboard_metrics(provider)
-    print(f"[INFO] Dashboard metrics ready: {', '.join(METRIC_NAMES)}")
-
     _save_prompts(total_q, modes)
 
     all_results: list[dict] = []
@@ -259,6 +260,7 @@ def run_evaluation(
         pipeline = RAGPipeline(mode=mode)
         use_tru_context = False
         mode_run_name = f"eval-{mode}-{int(time.time())}"
+        dashboard_metrics = _build_dashboard_metrics(provider)
 
         try:
             from trulens.apps.app import TruApp
@@ -278,31 +280,20 @@ def run_evaluation(
                     all_results.append(result)
                     time.sleep(0.05)  # light throttle
 
-            # OTel feedback computation can complete asynchronously.
-            # Trigger and wait here so dashboard leaderboard has final metric values.
+            # Force immediate feedback computation while tru_app is still alive.
+            # The background evaluator thread polls every ~10 s; without an
+            # explicit flush the TruApp can be garbage-collected before the
+            # thread wakes up, clearing the weakref and causing the evaluator
+            # to log "'NoneType' object has no attribute 'connector'".
             try:
-                tru_app.compute_feedbacks(raise_error_on_no_feedbacks_computed=False)
-                session = session or getattr(tru_app, "session", None)
-                if session is not None:
-                    mode_records = session.get_records_and_feedback(
-                        app_name="LightRAG-Evaluation",
-                        app_versions=[mode],
-                    )[0]
-                    mode_record_ids = (
-                        mode_records["record_id"].dropna().astype(str).tolist()
-                        if "record_id" in mode_records.columns
-                        else []
-                    )
-                    if mode_record_ids:
-                        session.wait_for_feedback_results(
-                            record_ids=mode_record_ids,
-                            feedback_names=list(METRIC_NAMES),
-                            timeout=180,
-                        )
-            except Exception as exc:
+                tru_app._evaluator.compute_now(record_ids=None)
+                tru_app.stop_evaluator()
+                print(f"[INFO] Dashboard feedbacks flushed for mode={mode}")
+            except Exception as flush_exc:
                 warnings.warn(
-                    f"[WARN] Feedback finalization incomplete for mode={mode}: {exc}"
+                    f"[WARN] Dashboard feedback flush failed for mode={mode}: {flush_exc}"
                 )
+
         except Exception as exc:
             warnings.warn(f"[WARN] TruApp context unavailable for mode={mode}: {exc}")
 
@@ -361,6 +352,51 @@ def run_evaluation(
 
 
 # Helpers
+
+
+def _build_dashboard_metrics(provider: object) -> list:
+    """Build TruLens Metric objects for the Web UI dashboard.
+
+    Uses TruLens v2 OTEL API (``Metric`` + ``Selector``).  Three metrics are
+    registered:
+
+    * **Context Relevance** — ``provider.context_relevance`` called once per
+      retrieved chunk (``collect_list=False``), TruLens aggregates the scores.
+    * **Answer Relevance** — ``provider.relevance`` maps question → ``prompt``
+      and ``select_record_output()`` → ``response``.  Works because
+      ``RAGPipeline.query()`` now returns the answer string directly.
+    * **Groundedness** — thin wrapper around ``compute_groundedness_v2`` so
+      that a single OpenAI SDK call evaluates the full context list from the
+      RETRIEVAL span against the generated answer.
+
+    ``query()`` returns a plain ``str`` (the answer), so
+    ``Selector.select_record_output()`` resolves to the answer string without
+    any tuple-indexing gymnastics.
+    """
+    # 1. Context Relevance — scored per chunk via TruLens provider
+    f_context_relevance = (
+        Metric(provider.context_relevance, name="Context Relevance")  # type: ignore[attr-defined]
+        .on_input()  # question → param "question"
+        .on_context(collect_list=False)  # one chunk at a time → param "context"
+    )
+
+    # 2. Answer Relevance — question vs generated answer
+    f_answer_relevance = (
+        Metric(provider.relevance, name="Answer Relevance")  # type: ignore[attr-defined]
+        .on_input()  # question → param "prompt"
+        .on({"response": Selector.select_record_output()})  # answer → param "response"
+    )
+
+    # 3. Groundedness — single OpenAI call via compute_groundedness_v2.
+    # References the module-level _gr_for_trulens so TruLens's evaluator
+    # thread can import it by name (closures are not reliably importable).
+    f_groundedness = (
+        Metric(_gr_for_trulens, name="Groundedness")
+        .on_context(collect_list=True)  # full chunk list → param "context"
+        .on({"answer": Selector.select_record_output()})  # answer → param "answer"
+    )
+
+    return [f_context_relevance, f_answer_relevance, f_groundedness]
 
 
 def _print_header(modes: list[str], total_q: int) -> None:

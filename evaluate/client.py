@@ -96,7 +96,9 @@ class LightRAGClient:
 
     def retrieve(self, question: str, mode: str, top_k: int = 10) -> dict[str, Any]:
         """POST /query/data — pure retrieval, no LLM call."""
-        return self._post("/query/data", {"query": question, "mode": mode, "top_k": top_k})
+        return self._post(
+            "/query/data", {"query": question, "mode": mode, "top_k": top_k}
+        )
 
     def generate(self, question: str, mode: str, top_k: int = 10) -> dict[str, Any]:
         """POST /query — LLM generation, returns {"response": "<answer>"}."""
@@ -106,8 +108,18 @@ class LightRAGClient:
         )
 
     @staticmethod
-    def extract_chunks(data: dict[str, Any]) -> list[str]:
-        """Extract plain-text context strings from POST /query/data response["data"]."""
+    def extract_chunks(
+        data: dict[str, Any],
+        max_entities: int = 5,
+        max_relationships: int = 5,
+    ) -> list[str]:
+        """Extract plain-text context strings from POST /query/data response["data"].
+
+        Args:
+            data:              Parsed ``response["data"]`` from ``/query/data``.
+            max_entities:      Maximum number of KG entity descriptions to include.
+            max_relationships: Maximum number of KG relationship descriptions to include.
+        """
         texts: list[str] = []
 
         for chunk in data.get("chunks") or []:
@@ -115,17 +127,39 @@ class LightRAGClient:
             if content:
                 texts.append(content)
 
-        for entity in data.get("entities") or []:
+        for entity in (data.get("entities") or [])[:max_entities]:
             desc = (entity.get("description") or "").strip()
             if desc:
                 texts.append(desc)
 
-        for rel in data.get("relationships") or []:
+        for rel in (data.get("relationships") or [])[:max_relationships]:
             desc = (rel.get("description") or "").strip()
             if desc:
                 texts.append(desc)
 
         return texts
+
+    @staticmethod
+    def extract_entities(data: dict[str, Any], max_entities: int = 5) -> list[str]:
+        """Extract up to *max_entities* entity description strings."""
+        descs: list[str] = []
+        for entity in (data.get("entities") or [])[:max_entities]:
+            desc = (entity.get("description") or "").strip()
+            if desc:
+                descs.append(desc)
+        return descs
+
+    @staticmethod
+    def extract_relationships(
+        data: dict[str, Any], max_relationships: int = 5
+    ) -> list[str]:
+        """Extract up to *max_relationships* relationship description strings."""
+        descs: list[str] = []
+        for rel in (data.get("relationships") or [])[:max_relationships]:
+            desc = (rel.get("description") or "").strip()
+            if desc:
+                descs.append(desc)
+        return descs
 
     @staticmethod
     def extract_answer(response_data: dict[str, Any]) -> str:
